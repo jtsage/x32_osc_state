@@ -1,0 +1,84 @@
+{
+	// See https://go.microsoft.com/fwlink/?LinkId=733558
+	// for the documentation about the tasks.json format
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "cargo run",
+			"type": "shell",
+			"command": "cargo", // note: full path to the cargo
+			"args": [
+				"run",
+				"--release"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			}
+		},
+		{
+			"label": "cargo doc",
+			"type": "shell",
+			"command": "cargo", // note: full path to the cargo
+			"args": [
+				"doc",
+				"--no-deps",
+				"--document-private-items",
+			],
+			"group": {
+				"kind": "test",
+			}
+		},
+		{
+			"label": "cargo test",
+			"type": "shell",
+			"command": "cargo", // note: full path to the cargo
+			"args": [
+				"test",
+				"--",
+				"--nocapture"
+			],
+			"group": {
+				"kind": "test",
+			},
+			"presentation": {
+				"showReuseMessage": false
+			}
+		},
+		{
+			"label": "cargo code coverage",
+			"dependsOn": ["cargo code coverage lcov", "cargo code coverage html"],
+			"dependsOrder": "sequence",
+			"problemMatcher": []
+		},
+		{
+			"hide": true,
+			"label": "cargo code coverage lcov",
+			"type": "shell",
+			"command": "cargo", // note: full path to the cargo
+			"args": [
+				"llvm-cov",
+				"--lcov",
+				"--output-path",
+				".\\coverage\\lcov.info",
+			],
+			"group": {
+				"kind": "test",
+			}
+		},
+		{
+			"hide": true,
+			"label": "cargo code coverage html",
+			"type": "shell",
+			"command": "cargo", // note: full path to the cargo
+			"args": [
+				"llvm-cov",
+				"report",
+				"--html",
+			],
+			"group": {
+				"kind": "test",
+			}
+		}
+	]
+}
