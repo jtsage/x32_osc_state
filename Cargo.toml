@@ -9,7 +9,7 @@ license = "ISC"
 name = "x32_osc_state"
 readme = "README.md"
 repository = "https://github.com/jtsage/x32_osc_state"
-version = "0.0.1"
+version = "0.0.2"
 
 [dependencies]
 lazy_static = "1.5.0"
