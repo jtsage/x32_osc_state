@@ -16,9 +16,9 @@ async fn main() -> io::Result<()> {
     let s = r.clone();
     let u = r.clone();
 
-    /// Ask for the full state of the X32 every 5 minutes.
-    /// Includes a pause of 50ms between each command sent to the
-    /// X32 to ensure we don't send data faster than it can handle
+    // Ask for the full state of the X32 every 5 minutes.
+    // Includes a pause of 50ms between each command sent to the
+    // X32 to ensure we don't send data faster than it can handle
     tokio::spawn(async move {
         loop {
             println!("asking for data");
@@ -41,11 +41,11 @@ async fn main() -> io::Result<()> {
         }
     });
 
-    /// Main loop, message received from the X32
+    // Main loop, message received from the X32
     let mut buf = [0; 1024];
     loop {
         let (len, addr) = r.recv_from(&mut buf).await?;
-        let buffer = Buffer::from(buf.clone().to_vec());
+        let buffer = x32::OSCBuffer::from(buf.clone().to_vec());
         x32_state.process(buffer);
         println!("{:?} bytes received from {:?}", len, addr);
     }
