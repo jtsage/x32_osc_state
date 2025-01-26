@@ -71,7 +71,7 @@ impl From<ConsoleRequest> for Vec<Buffer> {
                 util::new_node_buffer(format!("bus/{v:02}/config")),
             ],
             ConsoleRequest::Dca(v) => vec![
-                util::new_node_buffer(format!("dca/{v}/")),
+                util::new_node_buffer(format!("dca/{v}")),
                 util::new_node_buffer(format!("dca/{v}/config")),
             ],
             ConsoleRequest::Channel(v) => vec![

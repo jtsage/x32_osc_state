@@ -170,7 +170,7 @@ fn match_incoming_node(arg: &str) -> Result<ConsoleMessage, Error> {
     let parts = (parts.0.as_str(), parts.1.as_str(), parts.2.as_str(), parts.3.as_str());
 
     match parts {
-        (_, _, "mix", "") if arg_len >= 2 => {
+        (_, _, "mix", "") | ("dca", _, "", "") if arg_len >= 2 => {
             let fader_update:FaderUpdate = (
                 parts.0.to_owned(),
                 parts.1.to_owned(),
