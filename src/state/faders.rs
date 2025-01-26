@@ -52,14 +52,14 @@ impl FaderBank {
     }
 
     /// Get a fader, zero based index
-    pub fn get(&self, f_type: &FaderType, index : usize) -> Option<&Fader> {
+    pub fn get(&self, f_type: &FaderType, index : usize) -> Option<Fader> {
         match f_type {
-            FaderType::Aux => self.aux.get(index),
-            FaderType::Matrix => self.matrix.get(index),
-            FaderType::Main => self.main.get(index),
-            FaderType::Channel => self.channel.get(index),
-            FaderType::Dca => self.dca.get(index),
-            FaderType::Bus => self.bus.get(index),
+            FaderType::Aux => self.aux.get(index).cloned(),
+            FaderType::Matrix => self.matrix.get(index).cloned(),
+            FaderType::Main => self.main.get(index).cloned(),
+            FaderType::Channel => self.channel.get(index).cloned(),
+            FaderType::Dca => self.dca.get(index).cloned(),
+            FaderType::Bus => self.bus.get(index).cloned(),
             FaderType::Unknown => None,
         }
     }

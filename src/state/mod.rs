@@ -53,8 +53,8 @@ impl X32Console {
 
     /// Get a fader, 1 based index
     #[must_use]
-    pub fn fader(self, f_type:&FaderType, index: usize) -> Option<Fader> {
-        self.faders.get(f_type, index-1).cloned()
+    pub fn fader(&self, f_type:&FaderType, index: usize) -> Option<Fader> {
+        self.faders.get(f_type, index-1)
     }
 
     /// Get active cue, scene, or snippet
