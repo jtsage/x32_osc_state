@@ -6,7 +6,7 @@ use faders::{Fader, FaderBank};
 pub use faders::Fader as X32Fader;
 
 /// Cue record
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ShowCue {
     /// Displayed cue number
     pub cue_number : String,
@@ -19,7 +19,7 @@ pub struct ShowCue {
 }
 
 /// X32 State
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct X32Console {
     /// Faders
     pub faders : faders::FaderBank,
@@ -52,8 +52,9 @@ impl X32Console {
     }
 
     /// Get a fader, 1 based index
-    pub fn fader(&mut self, f_type:&FaderType, index: usize) -> Option<&mut Fader> {
-        self.faders.get(f_type, index-1)
+    #[must_use]
+    pub fn fader(self, f_type:&FaderType, index: usize) -> Option<Fader> {
+        self.faders.get(f_type, index-1).cloned()
     }
 
     /// Get active cue, scene, or snippet

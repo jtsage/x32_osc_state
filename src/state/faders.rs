@@ -2,7 +2,7 @@ use crate::x32::{FaderType, FaderUpdate};
 use crate::x32::util;
 
 /// Full tracked fader banks
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FaderBank {
     /// main and mono
     main : [Fader;2],
@@ -33,13 +33,13 @@ impl FaderBank {
 
     /// Update a fader
     pub fn update(&mut self, update : FaderUpdate) {
-        if let Some(fader) = self.get(&update.source, update.index) {
+        if let Some(fader) = self.get_mut(&update.source, update.index) {
             fader.update(update);
         }
     }
 
-    /// Get a fader, zero based index
-    pub fn get(&mut self, f_type: &FaderType, index : usize) -> Option<&mut Fader> {
+    /// Get a mutable fader, zero based index
+    pub fn get_mut(&mut self, f_type: &FaderType, index : usize) -> Option<&mut Fader> {
         match f_type {
             FaderType::Aux => self.aux.get_mut(index),
             FaderType::Matrix => self.matrix.get_mut(index),
@@ -50,6 +50,19 @@ impl FaderBank {
             FaderType::Unknown => None,
         }
     }
+
+    /// Get a fader, zero based index
+    pub fn get(&self, f_type: &FaderType, index : usize) -> Option<&Fader> {
+        match f_type {
+            FaderType::Aux => self.aux.get(index),
+            FaderType::Matrix => self.matrix.get(index),
+            FaderType::Main => self.main.get(index),
+            FaderType::Channel => self.channel.get(index),
+            FaderType::Dca => self.dca.get(index),
+            FaderType::Bus => self.bus.get(index),
+            FaderType::Unknown => None,
+        }
+    }
 }
 
 impl Default for FaderBank {
@@ -57,7 +70,7 @@ impl Default for FaderBank {
 }
 
 /// Named fader for console
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Fader {
     /// zero based index of fader
     index : usize,

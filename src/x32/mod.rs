@@ -22,7 +22,7 @@ pub enum Error {
     MalformedPacket
 }
 
-#[derive(Debug, PartialEq, PartialOrd)]
+#[derive(Debug, PartialEq, PartialOrd, Clone)]
 /// Show Control Mode
 pub enum ShowMode {
     /// Tracking cues
@@ -33,7 +33,7 @@ pub enum ShowMode {
     Snippets
 }
 
-#[derive(Debug, Default, PartialEq, PartialOrd)]
+#[derive(Debug, Default, PartialEq, PartialOrd, Clone)]
 /// Types of faders
 pub enum FaderType {
     /// auxin's, 1-8 (last 2 are USB typically)

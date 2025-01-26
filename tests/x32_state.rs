@@ -73,31 +73,31 @@ fn make_and_test_faders() {
 	make_fader_messages("main", 1, main.clone()).iter().for_each(|item|state.process(item.clone()));
 	make_fader_messages("dca", 3, dca.clone()).iter().for_each(|item|state.process(item.clone()));
 
-	let aux_fader = state.fader(&x32::FaderType::Aux, 2).expect("invalid fader");
+	let aux_fader = state.clone().fader(&x32::FaderType::Aux, 2).expect("invalid fader");
 
 	assert_eq!(aux_fader.name(), aux.2);
 	assert_eq!(aux_fader.level().0, x32::util::level_from_string(&format!("{}", aux.0)));
 	assert_eq!(aux_fader.is_on().0, aux.1);
 
-	let bus_fader = state.fader(&x32::FaderType::Bus, 8).expect("invalid fader");
+	let bus_fader = state.clone().fader(&x32::FaderType::Bus, 8).expect("invalid fader");
 
 	assert_eq!(bus_fader.name(), bus.2);
 	assert_eq!(bus_fader.level().0, x32::util::level_from_string(&format!("{}", bus.0)));
 	assert_eq!(bus_fader.is_on().0, bus.1);
 
-	let mtx_fader = state.fader(&x32::FaderType::Matrix, 4).expect("invalid fader");
+	let mtx_fader = state.clone().fader(&x32::FaderType::Matrix, 4).expect("invalid fader");
 
 	assert_eq!(mtx_fader.name(), mtx.2);
 	assert_eq!(mtx_fader.level().0, x32::util::level_from_string(&format!("{}", mtx.0)));
 	assert_eq!(mtx_fader.is_on().0, mtx.1);
 
-	let chan_fader = state.fader(&x32::FaderType::Channel, 23).expect("invalid fader");
+	let chan_fader = state.clone().fader(&x32::FaderType::Channel, 23).expect("invalid fader");
 
 	assert_eq!(chan_fader.name(), channel.2);
 	assert_eq!(chan_fader.level().0, x32::util::level_from_string(&format!("{}", channel.0)));
 	assert_eq!(chan_fader.is_on().0, channel.1);
 
-	let main_fader = state.fader(&x32::FaderType::Main, 1).expect("invalid fader");
+	let main_fader = state.clone().fader(&x32::FaderType::Main, 1).expect("invalid fader");
 
 	assert_eq!(main_fader.name(), main.2);
 	assert_eq!(main_fader.level().0, x32::util::level_from_string(&format!("{}", main.0)));
