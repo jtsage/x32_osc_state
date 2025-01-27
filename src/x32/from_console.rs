@@ -2,7 +2,7 @@ use super::{Error, FaderUpdate, util, ShowMode};
 use crate::osc::{Buffer, Message};
 
 /// CUE record
-#[derive(Debug, PartialEq, PartialOrd)]
+#[derive(Debug, PartialEq, PartialOrd, Eq, Ord)]
 pub struct CueUpdate {
     /// index in list
     pub index : usize,
@@ -17,7 +17,7 @@ pub struct CueUpdate {
 }
 
 /// Snippet record
-#[derive(Debug, PartialEq, PartialOrd)]
+#[derive(Debug, PartialEq, PartialOrd, Eq, Ord)]
 pub struct SnippetUpdate {
     /// index
     pub index : usize,
@@ -26,7 +26,7 @@ pub struct SnippetUpdate {
 }
 
 /// Scene record
-#[derive(Debug, PartialEq, PartialOrd)]
+#[derive(Debug, PartialEq, PartialOrd, Eq, Ord)]
 pub struct SceneUpdate {
     /// index
     pub index : usize,

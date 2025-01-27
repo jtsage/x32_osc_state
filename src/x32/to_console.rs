@@ -1,7 +1,7 @@
 use crate::osc::{Message, Buffer};
 use super::util;
 
-#[derive(Debug, PartialEq, PartialOrd)]
+#[derive(Debug, PartialEq, PartialOrd, Eq, Ord)]
 /// Get info from the console
 pub enum ConsoleRequest {
     /// Matrix with index

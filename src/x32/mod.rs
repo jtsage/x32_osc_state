@@ -11,7 +11,7 @@ mod from_console;
 pub use to_console::ConsoleRequest;
 pub use from_console::{ConsoleMessage, CueUpdate, SceneUpdate, SnippetUpdate};
 
-#[derive(Debug, PartialEq, PartialOrd)]
+#[derive(Debug, PartialEq, PartialOrd, Eq, Ord)]
 /// Errors on incoming messages
 pub enum Error {
     /// Fader is not covered, or out-of-bounds
@@ -22,7 +22,7 @@ pub enum Error {
     MalformedPacket
 }
 
-#[derive(Debug, PartialEq, PartialOrd, Clone)]
+#[derive(Debug, PartialEq, PartialOrd, Clone, Eq, Ord)]
 /// Show Control Mode
 pub enum ShowMode {
     /// Tracking cues
@@ -33,7 +33,7 @@ pub enum ShowMode {
     Snippets
 }
 
-#[derive(Debug, Default, PartialEq, PartialOrd, Clone)]
+#[derive(Debug, Default, PartialEq, PartialOrd, Clone, Eq, Ord)]
 /// Types of faders
 pub enum FaderType {
     /// auxin's, 1-8 (last 2 are USB typically)

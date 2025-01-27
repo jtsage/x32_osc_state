@@ -333,7 +333,7 @@ impl Type {
 
 // MARK: OSCTimeTag
 /// OSC Time tag structure
-#[derive(Debug, PartialEq, PartialOrd, Clone, Default)]
+#[derive(Debug, PartialEq, PartialOrd, Clone, Default, Eq, Ord)]
 pub struct TimeTag {
     /// seconds since epoch
     seconds: u32,

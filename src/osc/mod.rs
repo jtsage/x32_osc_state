@@ -36,7 +36,7 @@ pub const BUNDLE_TAG:[u8;8] = [0x23, 0x62, 0x75, 0x6e, 0x64, 0x6c, 0x65, 0x0];
 
 // MARK: BufferError
 /// OSC Error Types
-#[derive(Debug, PartialEq, PartialOrd, Clone)]
+#[derive(Debug, PartialEq, PartialOrd, Clone, Eq, Ord)]
 pub enum BufferError {
     /// buffer is not 4-byte aligned
     NotFourByte,
@@ -55,7 +55,7 @@ impl fmt::Display for BufferError {
 
 // MARK: TypeError
 /// OSC Error Types
-#[derive(Debug, PartialEq, PartialOrd, Clone)]
+#[derive(Debug, PartialEq, PartialOrd, Clone, Eq, Ord)]
 pub enum TypeError {
     /// String from bytes failed
     ConvertFromString,
