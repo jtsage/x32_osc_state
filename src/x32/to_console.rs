@@ -38,7 +38,7 @@ impl ConsoleRequest {
         buffers.extend(ConsoleRequest::Main(1));
         buffers.extend(ConsoleRequest::Main(2));
 
-        let aux:Vec<Buffer> = (1..=6).flat_map(ConsoleRequest::Aux).collect();
+        let aux:Vec<Buffer> = (1..=8).flat_map(ConsoleRequest::Aux).collect();
         let mtx:Vec<Buffer> = (1..=6).flat_map(ConsoleRequest::Matrix).collect();
         let bus:Vec<Buffer> = (1..=16).flat_map(ConsoleRequest::Bus).collect();
         let dca:Vec<Buffer> = (1..=8).flat_map(ConsoleRequest::Dca).collect();

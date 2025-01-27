@@ -20,6 +20,7 @@ pub struct FaderBank {
 
 impl FaderBank {
     /// create new fader bank
+    #[must_use]
     pub fn new() -> Self {
         FaderBank {
             main    : core::array::from_fn(|i| Fader::new(i, FaderType::Main)),
@@ -29,6 +30,22 @@ impl FaderBank {
             aux     : core::array::from_fn(|i| Fader::new(i, FaderType::Aux)),
             dca     : core::array::from_fn(|i| Fader::new(i, FaderType::Dca)),
         }
+    }
+
+    /// Reset faders
+    pub fn reset(&mut self) {
+        let update = FaderUpdate {
+            label: Some(String::new()),
+            level: Some(0_f32),
+            is_on: Some(false),
+            ..Default::default() };
+
+        self.main.iter_mut().for_each(|f| f.update(update.clone()));
+        self.aux.iter_mut().for_each(|f| f.update(update.clone()));
+        self.bus.iter_mut().for_each(|f| f.update(update.clone()));
+        self.dca.iter_mut().for_each(|f| f.update(update.clone()));
+        self.channel.iter_mut().for_each(|f| f.update(update.clone()));
+        self.matrix.iter_mut().for_each(|f| f.update(update.clone()));
     }
 
     /// Update a fader
@@ -52,6 +69,7 @@ impl FaderBank {
     }
 
     /// Get a fader, zero based index
+    #[must_use]
     pub fn get(&self, f_type: &FaderType, index : usize) -> Option<Fader> {
         match f_type {
             FaderType::Aux => self.aux.get(index).cloned(),

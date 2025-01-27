@@ -1,7 +1,7 @@
 use super::x32::{ConsoleMessage, FaderType, ShowMode};
 
 /// Fader state
-mod faders;
+pub mod faders;
 use faders::{Fader, FaderBank};
 pub use faders::Fader as X32Fader;
 
@@ -65,6 +65,29 @@ impl X32Console {
             ShowMode::Scenes => format!("Scene: {}" ,self.scene_name(self.current_cue)),
             ShowMode::Snippets => format!("Snippet: {}" ,self.snip_name(self.current_cue)),
         }
+    }
+
+    /// Count cues
+    #[must_use]
+    pub fn cue_list_size(&self) -> (usize, usize, usize) {
+        (
+            self.cues.iter().filter(|v| v.is_some()).count(),
+            self.scenes.iter().filter(|v| v.is_some()).count(),
+            self.snippets.iter().filter(|v| v.is_some()).count(),
+        )
+    }
+
+    /// Reset the state machine
+    pub fn reset(&mut self) {
+        self.clear_cues();
+        self.faders.reset();
+    }
+
+    /// Clear cue list.
+    pub fn clear_cues(&mut self) {
+        self.cues = [(); 500].map(|()| None);
+        self.snippets = [(); 100].map(|()| None);
+        self.scenes = [(); 100].map(|()| None);
     }
 
     /// get formatted cue name from index (includes scene and snippet)

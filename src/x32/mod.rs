@@ -98,7 +98,7 @@ impl fmt::Display for FaderType {
 }
 
 /// Fader update processed
-#[derive(Debug, PartialEq, PartialOrd)]
+#[derive(Debug, PartialEq, PartialOrd, Clone)]
 pub struct FaderUpdate {
     /// Type of fader
     pub source : FaderType,

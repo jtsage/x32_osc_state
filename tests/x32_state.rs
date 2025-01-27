@@ -25,6 +25,8 @@ fn make_and_test_cues() {
 
 	state.process(make_node_message("/-show/showfile/snippet/000 \"Snip-001\" 1 1 0 32768 1 "));
 
+	println!("{:?}", state.cue_list_size());
+
 	assert_eq!(state.active_cue(), "Cue: 0.0.0 :: -- [--] [--]");
 	state.process(make_node_message("/-show/prepos/current 0"));
 	assert_eq!(state.active_cue(), "Cue: 1.0.0 :: Cue Idx0 Num100 [01:SceneAAA] [00:Snip-001]");
@@ -108,4 +110,12 @@ fn make_and_test_faders() {
 	assert_eq!(dca_fader.name(), dca.2);
 	assert_eq!(dca_fader.level().0, x32::util::level_from_string(&format!("{}", dca.0)));
 	assert_eq!(dca_fader.is_on().0, dca.1);
+
+	state.reset();
+
+	let dca_fader = state.fader(&x32::FaderType::Dca, 3).expect("invalid fader");
+
+	assert_eq!(dca_fader.name(), "dca03");
+	assert_eq!(dca_fader.level().0, 0_f32);
+	assert_eq!(dca_fader.is_on().0, false);
 }

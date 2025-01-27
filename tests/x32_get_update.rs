@@ -5,7 +5,7 @@ use x32_osc_state::osc::Buffer;
 fn enum_full_update() {
 	let update = x32::ConsoleRequest::full_update();
 
-	assert_eq!(update.len(), 143);
+	assert_eq!(update.len(), 147);
 
 	// for (i, item) in update.iter().enumerate() {
 	// 	println!("{i:03}\n---\n{item}\n\n");
