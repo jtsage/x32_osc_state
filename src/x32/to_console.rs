@@ -64,6 +64,7 @@ impl IntoIterator for ConsoleRequest {
 }
 
 impl From<ConsoleRequest> for Vec<Buffer> {
+    // NOTE : FaderIndex should include a update message - direct buffefr?
     fn from(value: ConsoleRequest) -> Self {
         match value {
             ConsoleRequest::Bus(v) => vec![

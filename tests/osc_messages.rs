@@ -1,4 +1,5 @@
-use x32_osc_state::osc::{TypeError, Buffer, Type, Message, Packet};
+use x32_osc_state::osc::{Buffer, Type, Message, Packet};
+use x32_osc_state::enums::{Error, PacketError};
 use chrono::DateTime;
 use std::time::SystemTime;
 
@@ -180,7 +181,7 @@ fn decode_unknown_type() {
     let osc_packet:Result<Message, _> = buffer.try_into();
 
     assert!(osc_packet.is_err());
-    assert_eq!(osc_packet, Err(TypeError::InvalidPacket));
+    assert_eq!(osc_packet, Err(Error::Packet(PacketError::Invalid)));
 }
 
 #[test]
@@ -190,7 +191,7 @@ fn invalid_buffer() {
     let decode:Result<Message, _> = buffer.try_into();
 
     assert!(decode.is_err());
-    assert_eq!(decode, Err(TypeError::MisalignedBuffer))
+    assert_eq!(decode, Err(Error::Packet(PacketError::NotFourByte)))
 }
 
 
@@ -202,21 +203,21 @@ fn empty_buffer() {
     let decode:Result<Message, _> = buffer.try_into();
 
     assert!(decode.is_err());
-    assert_eq!(decode, Err(TypeError::InvalidPacket));
+    assert_eq!(decode, Err(Error::Packet(PacketError::Invalid)));
 }
 
 #[test]
 fn invalid_message_bad_arg() {
     let mut message = Message::new("hello");
 
-    message.add_item(Type::Error(TypeError::InvalidTypeFlag));
+    message.add_item(Type::Unknown());
 
     assert!(!message.is_valid());
 
     let buffer:Result<Buffer, _> = message.try_into();
 
     assert!(buffer.is_err());
-    assert_eq!(buffer, Err(TypeError::InvalidPacket));
+    assert_eq!(buffer, Err(Error::Packet(PacketError::Invalid)));
 }
 
 #[test]
@@ -228,7 +229,7 @@ fn invalid_message_bad_address() {
     let buffer:Result<Buffer, _> = message.try_into();
 
     assert!(buffer.is_err());
-    assert_eq!(buffer, Err(TypeError::InvalidPacket));
+    assert_eq!(buffer, Err(Error::Packet(PacketError::Invalid)));
 }
 
 
@@ -296,5 +297,5 @@ fn decode_blob_buffer_underrun() {
     let re_pack:Result<Message, _> = expected_buffer.clone().try_into();
 
     assert!(re_pack.is_err());
-    assert_eq!(re_pack, Err(TypeError::InvalidPacket));
+    assert_eq!(re_pack, Err(Error::Packet(PacketError::Invalid)));
 }

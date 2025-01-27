@@ -28,63 +28,12 @@ mod types;
 /// `OSCPacket` definitions
 mod packet;
 
-pub use types::{Type, TimeTag};
+use super::enums;
+
+pub use types::Type;
 pub use packet::{Packet, Bundle, Message};
 
-/// #bundle tag
-pub const BUNDLE_TAG:[u8;8] = [0x23, 0x62, 0x75, 0x6e, 0x64, 0x6c, 0x65, 0x0];
 
-// MARK: BufferError
-/// OSC Error Types
-#[derive(Debug, PartialEq, PartialOrd, Clone, Eq, Ord)]
-pub enum BufferError {
-    /// buffer is not 4-byte aligned
-    NotFourByte,
-    /// buffer does not end with 1 or more nulls
-    UnterminatedString,
-    /// buffer not large enough for operation
-    BufferUnderrun,
-}
-
-// MARK: BufferError->String
-impl fmt::Display for BufferError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "osc::BufferError::{self:?}")
-    }
-}
-
-// MARK: TypeError
-/// OSC Error Types
-#[derive(Debug, PartialEq, PartialOrd, Clone, Eq, Ord)]
-pub enum TypeError {
-    /// String from bytes failed
-    ConvertFromString,
-    /// Address is not valid
-    AddressContent,
-    /// Buffer not a multiple of 4 (string)
-    MisalignedBuffer,
-    /// Buffer not exactly 4 (int, float)
-    MisalignedNumberBuffer,
-    /// Unknown OSC type
-    UnknownType,
-    /// Invalid type conversion (named type)
-    InvalidTypeFlag,
-    /// Invalid type conversion (type -> primitive
-    InvalidTypeConversion,
-    /// Invalid packet (from buffer)
-    InvalidPacket,
-    /// Time underflow
-    InvalidTimeUnderflow,
-    /// Time overflow
-    InvalidTimeOverflow,
-}
-
-// MARK: TypeError->String
-impl fmt::Display for TypeError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "osc::TypeError::{self:?}")
-    }
-}
 
 
 // MARK: Buffer
@@ -117,14 +66,14 @@ impl fmt::Display for Buffer {
 }
 // MARK: Vec<u8>->Buffer
 impl From<Vec<u8>> for Buffer {
-    fn from(data: Vec<u8>) -> Self { Buffer { data } }
+    fn from(data: Vec<u8>) -> Self { Self { data } }
 }
 
 // MARK: Vec<ch>->Buffer
 impl From<Vec<char>> for Buffer {
     fn from(data: Vec<char>) -> Self {
         let data:Vec<u8> = data.into_iter().map(|v| (v as u8)).collect();
-        Buffer { data }
+        Self { data }
     }
 }
 
@@ -134,16 +83,16 @@ impl FromIterator<types::Type> for Buffer {
         let mut buffer:Vec<u8> = vec![];
 
         for i in iter {
-            buffer.extend(<Type as Into<Vec<u8>>>::into(i));
+            buffer.extend(<types::Type as Into<Vec<u8>>>::into(i));
         }
 
-        Buffer::from(buffer)
+        Self::from(buffer)
     }
 }
 
 impl FromIterator<types::Type> for String {
     fn from_iter<T: IntoIterator<Item = types::Type>>(iter: T) -> Self {
-        let mut return_string = String::new();
+        let mut return_string = Self::new();
 
         for i in iter {
             return_string.push_str(&i.to_string());
@@ -169,10 +118,10 @@ impl Buffer {
 
     /// check if buffer if a bundle
     #[must_use]
-    pub fn is_bundle(&self) -> bool { self.data.starts_with(&BUNDLE_TAG) }
+    pub fn is_bundle(&self) -> bool { self.data.starts_with(&enums::BUNDLE_TAG) }
 
     /// extend buffer with another buffer
-    pub fn extend(&mut self, item : &Buffer) {
+    pub fn extend(&mut self, item : &Self) {
         self.data.extend(item.as_vec());
     }
 
@@ -190,16 +139,16 @@ impl Buffer {
     /// - empty buffer
     /// - buffer length is 0
     /// - buffer is not a 4-byte multiple
-    pub fn get_string(&mut self) -> Result<Vec<u8>, BufferError> {
+    pub fn get_string(&mut self) -> Result<Vec<u8>, enums::Error> {
         if self.is_empty() {
-            Err(BufferError::BufferUnderrun)
+            Err(enums::Error::Packet(enums::PacketError::Underrun))
         } else if !self.is_valid() {
-            Err(BufferError::NotFourByte)
+            Err(enums::Error::Packet(enums::PacketError::NotFourByte))
         } else {
             let mut this_buffer = vec![];
             while this_buffer.last() != Some(&0_u8) {
                 if self.data.len() < 4 {
-                    return Err(BufferError::UnterminatedString);
+                    return Err(enums::Error::Packet(enums::PacketError::UnterminatedString));
                 }
                 this_buffer.extend(self.data[0..4].to_vec());
                 self.data = self.data[4 .. ].to_vec();
@@ -214,15 +163,15 @@ impl Buffer {
     /// - empty buffer
     /// - buffer length is 0
     /// - buffer is not a 4-byte multiple
-    pub fn get_bytes(&mut self, length: usize) -> Result<Vec<u8>, BufferError> {
+    pub fn get_bytes(&mut self, length: usize) -> Result<Vec<u8>, enums::Error> {
         if length == 0 {
             Ok(vec![])
         } else if self.is_empty() {
-            Err(BufferError::BufferUnderrun)
+            Err(enums::Error::Packet(enums::PacketError::Underrun))
         } else if !self.is_valid() || length % 4 != 0 {
-            Err(BufferError::NotFourByte)
+            Err(enums::Error::Packet(enums::PacketError::NotFourByte))
         } else if self.len() < length {
-            Err(BufferError::BufferUnderrun)
+            Err(enums::Error::Packet(enums::PacketError::Underrun))
         } else {
             let mut this_buffer = vec![];
             self.data[0..length].clone_into(&mut this_buffer);
@@ -237,13 +186,13 @@ impl Buffer {
     /// - empty buffer
     /// - buffer length is less than 4 (4 = zero length buffer, maybe valid?)
     /// - buffer is not a 4-byte multiple
-    pub fn get_next_byte_block(&mut self) -> Result<Vec<u8>, BufferError> {
+    pub fn get_next_byte_block(&mut self) -> Result<Vec<u8>, enums::Error> {
         if self.len() < 4 {
-            Err(BufferError::BufferUnderrun)
+            Err(enums::Error::Packet(enums::PacketError::Underrun))
         } else if !self.is_valid() {
-            Err(BufferError::NotFourByte)
+            Err(enums::Error::Packet(enums::PacketError::NotFourByte))
         } else {
-            let len_act_buff = self.data.clone()[0..4].try_into().map_err(|_| BufferError::BufferUnderrun)?;
+            let len_act_buff = self.data.clone()[0..4].try_into().map_err(|_| enums::Error::Packet(enums::PacketError::Underrun))?;
 
             #[expect(clippy::cast_sign_loss)]
             let len_act = i32::from_be_bytes(len_act_buff) as usize;
@@ -251,7 +200,7 @@ impl Buffer {
             let chunk_tot = len_tot + 4;
 
             if self.data.len() < ( chunk_tot ) {
-                Err(BufferError::BufferUnderrun)
+                Err(enums::Error::Packet(enums::PacketError::Underrun))
             } else {
                 let mut this_buffer = vec![];
                 self.data[0..chunk_tot].clone_into(&mut this_buffer);
@@ -267,24 +216,24 @@ impl Buffer {
     /// - empty buffer
     /// - buffer length is less than 4 (4 = zero length buffer, maybe valid?)
     /// - buffer is not a 4-byte multiple
-    pub fn get_next_block(&mut self) -> Result<Buffer, BufferError> {
+    pub fn get_next_block(&mut self) -> Result<Self, enums::Error> {
         if self.len() < 4 {
-            Err(BufferError::BufferUnderrun)
+            Err(enums::Error::Packet(enums::PacketError::Underrun))
         } else if !self.is_valid() {
-            Err(BufferError::NotFourByte)
+            Err(enums::Error::Packet(enums::PacketError::NotFourByte))
         } else {
-            let len_act_buff = self.data.clone()[0..4].try_into().map_err(|_| BufferError::BufferUnderrun)?;
+            let len_act_buff = self.data.clone()[0..4].try_into().map_err(|_| enums::Error::Packet(enums::PacketError::Underrun))?;
 
             #[expect(clippy::cast_sign_loss)]
             let chunk_tot = (i32::from_be_bytes(len_act_buff) as usize) + 4;
 
             if self.data.len() < ( chunk_tot ) {
-                Err(BufferError::BufferUnderrun)
+                Err(enums::Error::Packet(enums::PacketError::Underrun))
             } else {
                 let mut this_buffer = vec![];
                 self.data[4..chunk_tot].clone_into(&mut this_buffer);
                 self.data = self.data[chunk_tot..].to_vec();
-                Ok(Buffer::from(this_buffer))
+                Ok(Self::from(this_buffer))
             }
         }
     }
@@ -292,5 +241,5 @@ impl Buffer {
 
 /// MARK: Buffer default
 impl Default for Buffer {
-    fn default() -> Self { Buffer { data : vec![] } }
+    fn default() -> Self { Self { data : vec![] } }
 }

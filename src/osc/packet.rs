@@ -1,7 +1,10 @@
 /// OSC Packet definitions - messages and bundles, and `OSCData` container
 use std::fmt;
-use super::{Buffer, TypeError, Type, TimeTag, BUNDLE_TAG};
 
+use super::super::enums;
+use super::types::TimeTag;
+use super::types::Type;
+use super::Buffer;
 
 
 // MARK: Message
@@ -21,7 +24,7 @@ pub struct Message {
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub struct Bundle {
     /// Time tag for message
-    time : TimeTag,
+    pub time : TimeTag,
     /// Messages vector
     pub messages : Vec<Packet>
 }
@@ -48,8 +51,9 @@ impl From<Bundle> for Packet {
 impl Bundle {
     /// Make a new bundle
     #[must_use]
+    #[inline]
     pub fn new() -> Self {
-        Bundle {
+        Self {
             time : TimeTag::now(),
             messages : vec![]
         }
@@ -57,8 +61,9 @@ impl Bundle {
 
     /// Make a new future bundle (add "ms" to now)
     #[must_use]
+    #[inline]
     pub fn future(ms : u64) -> Self {
-        Bundle {
+        Self {
             time : TimeTag::future(ms),
             messages : vec![]
         }
@@ -80,7 +85,7 @@ impl Message {
     /// New message, relaxed addressing
     #[must_use]
     pub fn new(address: &str) -> Self {
-        Message {
+        Self {
             address : address.to_owned(),
             args : vec![],
             force_empty_args : false
@@ -91,7 +96,7 @@ impl Message {
     #[must_use]
     pub fn is_valid(&self) -> bool {
         if self.address.is_ascii() && !self.address.is_empty() {
-            !self.args.clone().iter().any(|s| matches!(s, Type::Error(_)))
+            !self.args.clone().iter().any(|s| matches!(s, Type::Unknown()))
         } else {
             false
         }
@@ -143,10 +148,10 @@ impl fmt::Display for Message {
 
 // MARK: Message->Buffer
 impl TryInto<Buffer> for Message {
-    type Error = TypeError;
+    type Error = enums::Error;
 
     fn try_into(self) -> Result<Buffer, Self::Error> {
-        if !self.is_valid() { return Err(TypeError::InvalidPacket); }
+        if !self.is_valid() { return Err(enums::Error::Packet(enums::PacketError::Invalid)); }
 
         let mut osc_buffer:Buffer = Type::String(self.address.clone()).into();
 
@@ -163,11 +168,11 @@ impl TryInto<Buffer> for Message {
 
 // MARK: Buffer->Message
 impl TryFrom<Buffer> for Message {
-    type Error = TypeError;
+    type Error = enums::Error;
 
     fn try_from(mut data: Buffer) -> Result<Self, Self::Error> {
         if !data.is_valid() {
-            Err(TypeError::MisalignedBuffer)
+            Err(enums::Error::Packet(enums::PacketError::NotFourByte))
         } else if let Ok(Type::String(osc_address)) = Type::decode_buffer(data.get_string(), 's') {
             let mut force_empty_args = false;
             let mut osc_payload:Vec<Type> = vec![];
@@ -185,31 +190,31 @@ impl TryFrom<Buffer> for Message {
                     'I' => Ok(Type::Bang()),
                     's' => Type::decode_buffer(data.get_string(), 's'),
                     'b' => Type::decode_buffer(data.get_next_byte_block(), 'b'),
-                    _ => Err(TypeError::UnknownType)
+                    _ => Err(enums::Error::OSC(enums::OSCError::UnknownType))
                 }.ok()).collect();
 
                 if osc_payload.len() != type_input_length {
-                    return Err(TypeError::InvalidPacket)
+                    return Err(enums::Error::Packet(enums::PacketError::Invalid))
                 }
             }
 
-            Ok(Message {
+            Ok(Self {
                 address : osc_address,
                 args : osc_payload,
                 force_empty_args
             })
         } else {
-            Err(TypeError::InvalidPacket)
+            Err(enums::Error::Packet(enums::PacketError::Invalid))
         }
     }
 }
 
 // MARK: Bundle->Buffer
 impl TryInto<Buffer> for Bundle {
-    type Error = TypeError;
+    type Error = enums::Error;
 
     fn try_into(self) -> Result<Buffer, Self::Error> {
-        let mut buffer = Buffer::from(BUNDLE_TAG.clone().to_vec());
+        let mut buffer = Buffer::from(enums::BUNDLE_TAG.to_vec());
 
         buffer.extend(&Type::TimeTag(self.time).into());
         
@@ -230,7 +235,7 @@ impl TryInto<Buffer> for Bundle {
 impl fmt::Display for Bundle {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "|#bundle•|")?;
-        write!(f, "{}", Type::TimeTag(self.time.clone()))?;
+        write!(f, "{}", Type::TimeTag(self.time))?;
 
         for item in self.messages.clone() {
             write!(f, "M[{item}]")?;
@@ -241,12 +246,12 @@ impl fmt::Display for Bundle {
 
 // MARK: Buffer->Bundle
 impl TryFrom<Buffer> for Bundle {
-    type Error = TypeError;
+    type Error = enums::Error;
 
     fn try_from(mut data: Buffer) -> Result<Self, Self::Error> {
         if !data.is_valid() {
-            Err(TypeError::MisalignedBuffer)
-        } else if Ok(BUNDLE_TAG.clone().to_vec()) == data.get_string() {
+            Err(enums::Error::Packet(enums::PacketError::NotFourByte))
+        } else if Ok(enums::BUNDLE_TAG.to_vec()) == data.get_string() {
             let time_tag = Type::decode_buffer(data.get_bytes(8), 't')?;
             let time = time_tag.try_into()?;
 
@@ -257,31 +262,28 @@ impl TryFrom<Buffer> for Bundle {
                     Ok(buffer) => {
                         match buffer.try_into() {
                             Ok(msg) => messages.push(msg),
-                            Err(_) => { return Err(TypeError::InvalidPacket); }
+                            Err(_) => { return Err(enums::Error::Packet(enums::PacketError::Invalid)); }
                         }
                     },
-                    Err(_) => { return Err(TypeError::InvalidPacket); }
+                    Err(_) => { return Err(enums::Error::Packet(enums::PacketError::Invalid)); }
                 }
             }
 
-            Ok(Bundle {
-                time,
-                messages,
-            })
+            Ok(Self { time, messages })
         } else {
-            Err(TypeError::InvalidPacket)
+            Err(enums::Error::Packet(enums::PacketError::Invalid))
         }
     }
 }
 
 // MARK: Packet->Buffer
 impl TryInto<Buffer> for Packet {
-    type Error = TypeError;
+    type Error = enums::Error;
 
     fn try_into(self) -> Result<Buffer, Self::Error> {
         match self {
-            Packet::Message(v) => v.try_into(),
-            Packet::Bundle(v) => v.try_into(),
+            Self::Message(v) => v.try_into(),
+            Self::Bundle(v) => v.try_into(),
         }
     }
 }
@@ -290,27 +292,27 @@ impl TryInto<Buffer> for Packet {
 impl fmt::Display for Packet {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Packet::Message(v) => write!(f, "{v}"),
-            Packet::Bundle(v) => write!(f, "{v}")
+            Self::Message(v) => write!(f, "{v}"),
+            Self::Bundle(v) => write!(f, "{v}")
         }
     }
 }
 
 // MARK: Buffer->Packet
 impl TryFrom<Buffer> for Packet {
-    type Error = TypeError;
+    type Error = enums::Error;
 
     fn try_from(data: Buffer) -> Result<Self, Self::Error> {
         if !data.is_valid() {
-            Err(TypeError::MisalignedBuffer)
+            Err(enums::Error::Packet(enums::PacketError::NotFourByte))
         } else if data.is_bundle() {
             match data.try_into() {
-                Ok(v) => Ok(Packet::Bundle(v)),
+                Ok(v) => Ok(Self::Bundle(v)),
                 Err(v) => Err(v)
             }
         } else {
             match data.try_into() {
-                Ok(v) => Ok(Packet::Message(v)),
+                Ok(v) => Ok(Self::Message(v)),
                 Err(v) => Err(v)
             }
         }

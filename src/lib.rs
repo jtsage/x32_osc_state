@@ -20,7 +20,7 @@
 #![warn(clippy::option_if_let_else)]
 #![warn(clippy::or_fun_call)]
 #![warn(clippy::partial_pub_fields)]
-#![warn(clippy::pub_use)]
+// #![warn(clippy::pub_use)]
 #![warn(clippy::redundant_type_annotations)]
 #![warn(clippy::renamed_function_params)]
 #![warn(clippy::return_self_not_must_use)]
@@ -34,22 +34,21 @@
 #![warn(clippy::use_self)]
 // #![warn(clippy::non_std_lazy_statics)]
 
+/// Enums and static data
+pub mod enums;
 /// Low-level OSC message handling
 pub mod osc;
 /// X32 Types and OSC Reflections
 pub mod x32;
-/// X32 state machine
-pub mod state;
+// / X32 state machine
+// pub mod state;
 
-pub use state::X32Console;
-pub use state::X32Fader;
-pub use x32::FaderType;
-pub use x32::ConsoleRequest;
-pub use osc::Buffer as OSCBuffer;
-pub use osc::Packet as OSCPacket;
-pub use osc::Bundle as OSCBundle;
-pub use osc::Message as OSCMessage;
+// pub use state::X32Console;
+// pub use state::X32Fader;
+// pub use x32::FaderType;
+// pub use x32::ConsoleRequest;
+// pub use osc::Buffer as OSCBuffer;
+// pub use osc::Packet as OSCPacket;
+// pub use osc::Bundle as OSCBundle;
+// pub use osc::Message as OSCMessage;
 
-/// /xremote command
-// #[expect(dead_code)]
-pub const XREMOTE:[u8;12] = [0x2f, 0x78, 0x72, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x0, 0x0, 0x0, 0x0];
