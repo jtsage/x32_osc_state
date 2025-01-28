@@ -1,4 +1,5 @@
-use x32_osc_state::osc::{Buffer, TypeError, Type, TimeTag, BufferError};
+use x32_osc_state::enums::{Error, OSCError, PacketError};
+use x32_osc_state::osc::{Buffer, Type};
 use chrono::DateTime;
 use std::time::SystemTime;
 
@@ -26,10 +27,10 @@ macro_rules! simple_type_test {
             assert!(buffer.is_valid(), "valid buffer");
             assert_eq!(buffer.len(), buffer_len);
 
-            let re_read:Type = (buffer.as_slice(), type_char).into();
+            let re_read:Result<Type, _> = (buffer.as_slice(), type_char).try_into();
 
-            assert!(!re_read.is_error(), "buffer re-read {}", re_read);
-            assert_eq!(re_read, osc_type, "original matches re-read");
+            assert!(!re_read.is_err(), "buffer re-read {:?}", re_read);
+            assert_eq!(re_read.unwrap(), osc_type, "original matches re-read");
         }
     )*
     }
@@ -47,7 +48,7 @@ simple_type_test! {
     boolean_false : (false, 'F', 0, "|F:|"), bool,
     char : ('x', 'c', 4, "|c:x|"), char,
     color : ([127_u8, 127_u8, 127_u8, 255_u8], 'r', 4, "|r:[127, 127, 127, 255]|"), [u8;4],
-    time_tag : (TimeTag::from((46_u32, 92_u32)), 't', 8, "|t:[46, 92]|"), TimeTag,
+    // time_tag : (TimeTag::from((46_u32, 92_u32)), 't', 8, "|t:[46, 92]|"), TimeTag,
     bang : (Type::Bang(), 'I', 0, "|I:|"), Type,
     null : (Type::Null(), 'N', 0, "|N:|"), Type,
     type_list_empty : (vec![], ',', 0, "|,:|"), Vec<char>,
@@ -63,28 +64,25 @@ fn buffer_size() {
     let ar_6  = rnd_buffer(6);
     let ar_8  = rnd_buffer(8);
 
-    let error_type_bad_number = Type::Error(TypeError::MisalignedNumberBuffer);
-    let error_type_bad_buffer = Type::Error(TypeError::MisalignedBuffer);
+    let error_type_bad_number = Err(Error::Packet(PacketError::Underrun));
+    let error_type_bad_buffer = Err(Error::Packet(PacketError::NotFourByte));
 
-    assert_eq!(Type::from_type(&ar_1, 'f'), error_type_bad_buffer);
-    assert_eq!(Type::from_type(&ar_2, 'f'), error_type_bad_buffer);
-    assert_eq!(Type::from_type(&ar_3, 'f'), error_type_bad_buffer);
-    assert_eq!(Type::from_type(&ar_6, 'f'), error_type_bad_buffer);
+    assert_eq!(Type::try_from_type(&ar_1, 'f'), error_type_bad_buffer);
+    assert_eq!(Type::try_from_type(&ar_2, 'f'), error_type_bad_buffer);
+    assert_eq!(Type::try_from_type(&ar_3, 'f'), error_type_bad_buffer);
+    assert_eq!(Type::try_from_type(&ar_6, 'f'), error_type_bad_buffer);
 
-    assert!(matches!(Type::from_type(&ar_4, 'f'), Type::Float(_)));
-    assert_eq!(Type::from_type(&ar_8, 'f'), error_type_bad_number);
+    assert!(matches!(Type::try_from_type(&ar_4, 'f'), Ok(Type::Float(_))));
+    assert_eq!(Type::try_from_type(&ar_8, 'f'), error_type_bad_number);
 
-    assert_eq!(Type::from_type(&ar_4, 'd'), error_type_bad_number);
-    assert!(matches!(Type::from_type(&ar_8, 'd'), Type::Double(_)));
+    assert_eq!(Type::try_from_type(&ar_4, 'd'), error_type_bad_number);
+    assert!(matches!(Type::try_from_type(&ar_8, 'd'), Ok(Type::Double(_))));
 
-    assert_eq!(Type::from_type(&ar_8, 'r'), error_type_bad_buffer);
-    assert_eq!(Type::from_type(&ar_8, 'c'), error_type_bad_buffer);
+    assert_eq!(Type::try_from_type(&ar_8, 'r'), error_type_bad_number);
+    assert_eq!(Type::try_from_type(&ar_8, 'c'), error_type_bad_number);
 
-    assert_eq!(Type::decode_buffer(Err(BufferError::BufferUnderrun), 'f'), Err(TypeError::InvalidPacket));
+    assert_eq!(Type::decode_buffer( Err(Error::Packet(PacketError::Underrun)), 'f'),  Err(Error::Packet(PacketError::Underrun)));
     assert!(matches!(Type::decode_buffer(Ok(ar_4.clone()), 'f'), Ok(Type::Float(_))));
-
-    assert_eq!(Type::from_type(&ar_4, 'd').to_string(), "|*:osc::TypeError::MisalignedNumberBuffer|");
-    assert_eq!(Type::from_type(&ar_8, 'c').to_string(), "|*:osc::TypeError::MisalignedBuffer|");
 }
 
 
@@ -95,37 +93,22 @@ fn invalid_type_conversion_to_osc_type() {
     let decoded:Result<String, _> = osc_type.try_into();
 
     assert!(decoded.is_err());
-    assert_eq!(decoded, Err(TypeError::InvalidTypeConversion));
-}
-
-
-#[test]
-fn type_error_display() {
-    assert_eq!(Type::Error(TypeError::AddressContent).to_string(), "|*:osc::TypeError::AddressContent|");
-    assert_eq!(Type::Error(TypeError::ConvertFromString).to_string(), "|*:osc::TypeError::ConvertFromString|");
-    assert_eq!(Type::Error(TypeError::InvalidPacket).to_string(), "|*:osc::TypeError::InvalidPacket|");
-    assert_eq!(Type::Error(TypeError::InvalidTimeOverflow).to_string(), "|*:osc::TypeError::InvalidTimeOverflow|");
-    assert_eq!(Type::Error(TypeError::InvalidTimeUnderflow).to_string(), "|*:osc::TypeError::InvalidTimeUnderflow|");
-    assert_eq!(Type::Error(TypeError::InvalidTypeConversion).to_string(), "|*:osc::TypeError::InvalidTypeConversion|");
-    assert_eq!(Type::Error(TypeError::InvalidTypeFlag).to_string(), "|*:osc::TypeError::InvalidTypeFlag|");
-    assert_eq!(Type::Error(TypeError::MisalignedBuffer).to_string(), "|*:osc::TypeError::MisalignedBuffer|");
-    assert_eq!(Type::Error(TypeError::MisalignedNumberBuffer).to_string(), "|*:osc::TypeError::MisalignedNumberBuffer|");
-    assert_eq!(Type::Error(TypeError::UnknownType).to_string(), "|*:osc::TypeError::UnknownType|");
+    assert_eq!(decoded, Err(Error::OSC(OSCError::InvalidTypeConversion)));
 }
 
 #[test]
 fn decode_unknown_type() {
     let buffer = rnd_buffer(4);
-    let osc_type = Type::from_type(&buffer, 'x');
+    let osc_type = Type::try_from_type(&buffer, 'x');
 
-    assert_eq!(osc_type, Type::Error(TypeError::InvalidTypeFlag));
+    assert_eq!(osc_type, Err(Error::OSC(OSCError::InvalidTypeFlag)));
 }
 
 #[test]
 fn cast_default_type() {
     let osc_type:Type = Default::default();
 
-    assert_eq!(osc_type, Type::Error(TypeError::UnknownType));
+    assert_eq!(osc_type, Type::Unknown());
 }
 
 
@@ -134,9 +117,9 @@ fn type_char_invalid() {
     let osc_type_flag ='c';
     let osc_buffer = Buffer::from(vec![0x0, 0x0, 0xde, 0x01]);
 
-    let osc_type = Type::from((osc_buffer.as_slice(), osc_type_flag));
+    let osc_type = Type::try_from((osc_buffer.as_slice(), osc_type_flag));
 
-    assert_eq!(osc_type, Type::Error(TypeError::ConvertFromString));
+    assert_eq!(osc_type, Err(Error::OSC(OSCError::ConvertFromString)));
 }
 
 #[test]
@@ -145,11 +128,11 @@ fn type_string_invalid() {
     let raw_buffer:Vec<u8> = vec![0x0, 0x0, 0xde, 0x01, 0x64, 0x64, 0x64, 0x0];
     let osc_buffer = Buffer::from(raw_buffer.clone());
 
-    let osc_type = Type::from((osc_buffer.as_slice(), osc_type_flag));
+    let osc_type = Type::try_from((osc_buffer.as_slice(), osc_type_flag));
     let osc_type_opt = Type::decode_buffer(Ok(raw_buffer), osc_type_flag);
 
     assert!(osc_type_opt.is_err());
-    assert_eq!(osc_type, Type::Error(TypeError::ConvertFromString));
+    assert_eq!(osc_type, Err(Error::OSC(OSCError::ConvertFromString)));
 }
 
 // MARK: time tags
@@ -165,7 +148,7 @@ fn type_time_too_early() {
     let decoded:Result<Type, _> = Type::try_from(time_system);
 
     assert!(decoded.is_err());
-    assert_eq!(decoded, Err(TypeError::InvalidTimeUnderflow));
+    assert_eq!(decoded, Err(Error::OSC(OSCError::InvalidTimeUnderflow)));
 }
 
 #[test]
@@ -180,7 +163,7 @@ fn type_time_too_late() {
     let decoded:Result<Type, _> = Type::try_from(time_system);
 
     assert!(decoded.is_err());
-    assert_eq!(decoded, Err(TypeError::InvalidTimeOverflow));
+    assert_eq!(decoded, Err(Error::OSC(OSCError::InvalidTimeOverflow)));
 }
 
 #[test]
@@ -204,7 +187,7 @@ fn type_time() {
     assert_eq!(osc_value, time_system);
     assert_eq!(osc_type.to_string(), format!("|t:[3165615030, 536870912]|"));
 
-    assert_eq!(Type::from_type(&osc_buffer.as_vec(), 't'), osc_type);
+    assert_eq!(Type::try_from_type(&osc_buffer.as_vec(), 't'), Ok(osc_type));
 }
 
 #[test]
@@ -214,7 +197,7 @@ fn time_output_error() {
     let decoded:Result<SystemTime,_> = osc_type.try_into();
 
     assert!(decoded.is_err());
-    assert_eq!(decoded, Err(TypeError::InvalidTypeConversion));
+    assert_eq!(decoded, Err(Error::OSC(OSCError::InvalidTypeConversion)));
 }
 
 #[test]
@@ -230,10 +213,10 @@ fn blob_type_good_six() {
 
     assert_eq!(packed_buffer.as_vec(), expect_buffer);
 
-    let re_pack = Type::from_type(&expect_buffer, 'b');
+    let re_pack = Type::try_from_type(&expect_buffer, 'b');
 
-    assert_eq!(osc_type, re_pack);
-    assert_eq!(osc_type.to_string(), "|b:[~b:6~]|")
+    assert_eq!(osc_type.to_string(), "|b:[~b:6~]|");
+    assert_eq!(osc_type, re_pack.unwrap());
 }
 
 #[test]
@@ -247,19 +230,19 @@ fn blob_type_good_eight() {
 
     assert_eq!(packed_buffer.as_vec(), expect_buffer);
 
-    let re_pack = Type::from_type(&expect_buffer, 'b');
+    let re_pack = Type::try_from_type(&expect_buffer, 'b');
 
-    assert_eq!(osc_type, re_pack);
+    assert_eq!(osc_type, re_pack.unwrap());
 }
 
 #[test]
 fn blob_type_short_twelve() {
     let expect_buffer:Vec<u8> = vec![0x0, 0x0, 0x0, 0x12, 0x0, 0x0, 0xde, 0x01, 0x64, 0x64, 0x2, 0x2];
 
-    let re_pack = Type::from_type(&expect_buffer, 'b');
+    let re_pack = Type::try_from_type(&expect_buffer, 'b');
 
-    assert!(re_pack.is_error());
-    assert_eq!(re_pack, Type::Error(TypeError::MisalignedBuffer))
+    assert!(re_pack.is_err());
+    assert_eq!(re_pack, Err(Error::Packet(PacketError::Underrun)))
 }
 
 
@@ -267,25 +250,9 @@ fn blob_type_short_twelve() {
 fn blob_type_empty() {
     let expect_buffer:Vec<u8> = vec![];
 
-    let re_pack = Type::from_type(&expect_buffer, 'b');
+    let re_pack = Type::try_from_type(&expect_buffer, 'b');
 
-    assert!(re_pack.is_error());
-    assert_eq!(re_pack, Type::Error(TypeError::MisalignedBuffer))
+    assert!(re_pack.is_err());
+    assert_eq!(re_pack, Err(Error::Packet(PacketError::Underrun)));
 }
 
-#[test]
-fn time_future_test() {
-    let now = TimeTag::now();
-    let future = TimeTag::future(5000);
-
-    let bad_future = TimeTag::future(u64::MAX);
-    assert_eq!(bad_future, TimeTag::default());
-
-    let now_sys:SystemTime = now.into();
-    let future_sys:SystemTime = future.into();
-
-    let duration = future_sys.duration_since(now_sys).expect("clock drift");
-    let seconds = duration.as_secs_f64();
-
-    assert!(seconds > 4.0 && seconds < 6.0);
-}

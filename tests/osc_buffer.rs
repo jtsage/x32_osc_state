@@ -1,4 +1,5 @@
-use x32_osc_state::osc::{BufferError, Buffer};
+use x32_osc_state::osc::Buffer;
+use x32_osc_state::enums::{Error, PacketError};
 
 mod buffer_common;
 use buffer_common::*;
@@ -26,6 +27,15 @@ macro_rules! buffer_tests {
             let buffer = Buffer::from(input);
 
             assert_eq!(buffer.is_valid(), is_valid, "valid");
+            if !is_valid {
+                assert_eq!(buffer.clone().get_bytes(4).unwrap_err(), Error::Packet(PacketError::NotFourByte));
+                assert_eq!(buffer.clone().get_bytes(8).unwrap_err(), Error::Packet(PacketError::NotFourByte));
+                assert_eq!(buffer.clone().get_string().unwrap_err(), Error::Packet(PacketError::NotFourByte));
+            } else if can_4 && !can_8 {
+                assert_eq!(buffer.clone().get_bytes(8).unwrap_err(), Error::Packet(PacketError::Underrun));
+            } else if !can_str {
+                assert_eq!(buffer.clone().get_string().unwrap_err(), Error::Packet(PacketError::UnterminatedString));
+            }
             assert_eq!(buffer.clone().get_bytes(4).is_ok(), can_4, "4-byte");
             assert_eq!(buffer.clone().get_bytes(8).is_ok(), can_8, "8-byte");
             assert_eq!(buffer.clone().get_string().is_ok(), can_str, "string");
@@ -64,18 +74,18 @@ fn error_type_check() {
     let four_byte = Buffer::from(rnd_buffer(4));
     let unterminated_string = Buffer::from(rnd_buffer(4));
 
-    assert_eq!(three_byte.clone().get_bytes(4), Err(BufferError::NotFourByte));
-    assert_eq!(three_byte.clone().get_string(), Err(BufferError::NotFourByte));
+    assert_eq!(three_byte.clone().get_bytes(4), Err(Error::Packet(PacketError::NotFourByte)));
+    assert_eq!(three_byte.clone().get_string(), Err(Error::Packet(PacketError::NotFourByte)));
 
-    assert_eq!(four_byte.clone().get_bytes(8), Err(BufferError::BufferUnderrun));
-    assert_eq!(empty_byte.clone().get_string(), Err(BufferError::BufferUnderrun));
-    assert_eq!(empty_byte.clone().get_bytes(4), Err(BufferError::BufferUnderrun));
+    assert_eq!(four_byte.clone().get_bytes(8), Err(Error::Packet(PacketError::Underrun)));
+    assert_eq!(empty_byte.clone().get_string(), Err(Error::Packet(PacketError::Underrun)));
+    assert_eq!(empty_byte.clone().get_bytes(4), Err(Error::Packet(PacketError::Underrun)));
 
-    assert_eq!(unterminated_string.clone().get_string(), Err(BufferError::UnterminatedString));
+    assert_eq!(unterminated_string.clone().get_string(), Err(Error::Packet(PacketError::UnterminatedString)));
 
-    assert_eq!(BufferError::BufferUnderrun.to_string(), "osc::BufferError::BufferUnderrun");
-    assert_eq!(BufferError::UnterminatedString.to_string(), "osc::BufferError::UnterminatedString");
-    assert_eq!(BufferError::NotFourByte.to_string(), "osc::BufferError::NotFourByte");
+    assert_eq!(Error::Packet(PacketError::Underrun).to_string(), "Packet(Underrun)");
+    assert_eq!(Error::Packet(PacketError::UnterminatedString).to_string(), "Packet(UnterminatedString)");
+    assert_eq!(Error::Packet(PacketError::NotFourByte).to_string(), "Packet(NotFourByte)");
 }
 
 #[test]
@@ -90,10 +100,10 @@ fn get_next_checks() {
     let empty_buffer = Buffer::default();
     let invalid_buffer = Buffer::from(vec![0x0, 0x0, 0x0, 0x0, 0x0]);
 
-    assert_eq!(empty_buffer.clone().get_next_block(), Err(BufferError::BufferUnderrun));
-    assert_eq!(empty_buffer.clone().get_next_byte_block(), Err(BufferError::BufferUnderrun));
+    assert_eq!(empty_buffer.clone().get_next_block(), Err(Error::Packet(PacketError::Underrun)));
+    assert_eq!(empty_buffer.clone().get_next_byte_block(), Err(Error::Packet(PacketError::Underrun)));
 
-    assert_eq!(invalid_buffer.clone().get_next_block(), Err(BufferError::NotFourByte));
-    assert_eq!(invalid_buffer.clone().get_next_byte_block(), Err(BufferError::NotFourByte));
+    assert_eq!(invalid_buffer.clone().get_next_block(), Err(Error::Packet(PacketError::NotFourByte)));
+    assert_eq!(invalid_buffer.clone().get_next_byte_block(), Err(Error::Packet(PacketError::NotFourByte)));
 }
 

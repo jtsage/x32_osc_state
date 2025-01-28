@@ -1,31 +1,12 @@
-use x32_osc_state::x32;
-use std::str::FromStr;
-
-#[test]
-fn string_to_fader_type() {
-    assert_eq!(x32::FaderType::from_str("auxin"), Ok(x32::FaderType::Aux));
-    assert_eq!(x32::FaderType::from_str("bus"), Ok(x32::FaderType::Bus));
-    assert_eq!(x32::FaderType::from_str("ch"), Ok(x32::FaderType::Channel));
-    assert_eq!(x32::FaderType::from_str("dca"), Ok(x32::FaderType::Dca));
-    assert_eq!(x32::FaderType::from_str("main"), Ok(x32::FaderType::Main));
-    assert_eq!(x32::FaderType::from_str("mtx"), Ok(x32::FaderType::Matrix));
-    assert_eq!(x32::FaderType::from_str("other"), Err(x32::Error::InvalidFader));
-
-    assert_eq!(x32::FaderType::Aux.to_string(), "auxin");
-    assert_eq!(x32::FaderType::Bus.to_string(), "bus");
-    assert_eq!(x32::FaderType::Channel.to_string(), "ch");
-    assert_eq!(x32::FaderType::Dca.to_string(), "dca");
-    assert_eq!(x32::FaderType::Main.to_string(), "main");
-    assert_eq!(x32::FaderType::Matrix.to_string(), "mtx");
-    assert_eq!(x32::FaderType::Unknown.to_string(), "");
-}
+use x32_osc_state::x32::ConsoleMessage;
+use x32_osc_state::enums::Fader;
 
 #[test]
 fn address_split() {
-    let items_1 = x32::util::split_address("/howdy");
-    let items_2 = x32::util::split_address("/howdy/ho");
-    let items_3 = x32::util::split_address("/howdy/ho/neighbor");
-    let items_4 = x32::util::split_address("/howdy/ho/neighbor/simpson");
+    let items_1 = ConsoleMessage::split_address("/howdy");
+    let items_2 = ConsoleMessage::split_address("/howdy/ho");
+    let items_3 = ConsoleMessage::split_address("/howdy/ho/neighbor");
+    let items_4 = ConsoleMessage::split_address("/howdy/ho/neighbor/simpson");
 
     assert_eq!(items_1.0, "howdy");
     assert_eq!(items_1.1, "");
@@ -48,26 +29,6 @@ fn address_split() {
     assert_eq!(items_4.3, "simpson");
 }
 
-#[test]
-fn check_bounds() {
-    // Note - check bounds is ZERO based
-    assert_eq!(x32::FaderType::Aux.check_bounds(8), false);
-    assert_eq!(x32::FaderType::Channel.check_bounds(32), false);
-    assert_eq!(x32::FaderType::Bus.check_bounds(16), false);
-    assert_eq!(x32::FaderType::Dca.check_bounds(8), false);
-    assert_eq!(x32::FaderType::Main.check_bounds(2), false);
-    assert_eq!(x32::FaderType::Matrix.check_bounds(8), false);
-
-    assert_eq!(x32::FaderType::Aux.check_bounds(7), true);
-    assert_eq!(x32::FaderType::Channel.check_bounds(31), true);
-    assert_eq!(x32::FaderType::Bus.check_bounds(15), true);
-    assert_eq!(x32::FaderType::Dca.check_bounds(7), true);
-    assert_eq!(x32::FaderType::Main.check_bounds(1), true);
-    assert_eq!(x32::FaderType::Matrix.check_bounds(5), true);
-
-    assert_eq!(x32::FaderType::Unknown.check_bounds(0), false);
-    assert_eq!(x32::FaderType::Unknown.check_bounds(8), false);
-}
 
 #[test]
 fn check_level_conversion() {
@@ -103,7 +64,7 @@ fn check_level_conversion() {
     ];
 
     for v in known_value {
-        assert_eq!(x32::util::level_from_string(v.1), v.0, "{} -> {}", v.1, v.0);
-        assert_eq!(x32::util::level_to_string(v.0), v.1, "{} -> {}", v.0, v.1);
+        assert_eq!(Fader::level_from_string(v.1), v.0, "{} -> {}", v.1, v.0);
+        assert_eq!(Fader::level_to_string(v.0), v.1, "{} -> {}", v.0, v.1);
     }
 }

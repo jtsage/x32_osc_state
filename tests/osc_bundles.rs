@@ -1,4 +1,5 @@
-use x32_osc_state::osc::{Buffer, Packet, Bundle, Message, Type, TypeError};
+use x32_osc_state::osc::{Buffer, Packet, Bundle, Message, Type};
+use x32_osc_state::enums::{Error, PacketError};
 
 #[test]
 fn empty_bundle() {
@@ -126,28 +127,28 @@ fn invalid_bundle_buffers() {
 	let malformed_bundle_from:Result<Packet, _> = malformed.try_into();
 
 	assert!(malformed_bundle_from.is_err());
-	assert_eq!(malformed_bundle_from, Err(TypeError::MisalignedBuffer));
+	assert_eq!(malformed_bundle_from, Err(Error::Packet(PacketError::NotFourByte)));
 
 	assert!(malformed_bundle.is_err());
-	assert_eq!(malformed_bundle, Err(TypeError::MisalignedBuffer));
+	assert_eq!(malformed_bundle, Err(Error::Packet(PacketError::NotFourByte)));
 
 	let wrong_start_bundle = Bundle::try_from(wrong_start);
 	assert!(wrong_start_bundle.is_err());
-	assert_eq!(wrong_start_bundle, Err(TypeError::InvalidPacket));
+	assert_eq!(wrong_start_bundle, Err(Error::Packet(PacketError::Invalid)));
 
 	let empty_packet_bundle = Bundle::try_from(empty_packet.clone());
 	let empty_packet_from:Result<Packet, _> = empty_packet.try_into();
 
 	assert!(empty_packet_bundle.is_err());
-	assert_eq!(empty_packet_bundle, Err(TypeError::InvalidPacket));
+	assert_eq!(empty_packet_bundle, Err(Error::Packet(PacketError::Underrun)));
 	assert!(empty_packet_from.is_err());
-	assert_eq!(empty_packet_from, Err(TypeError::InvalidPacket));
+	assert_eq!(empty_packet_from, Err(Error::Packet(PacketError::Underrun)));
 
 	let bad_msg_bundle = Bundle::try_from(bad_msg);
 	assert!(bad_msg_bundle.is_err());
-	assert_eq!(bad_msg_bundle, Err(TypeError::InvalidPacket));
+	assert_eq!(bad_msg_bundle, Err(Error::Packet(PacketError::Invalid)));
 
 	let truncated_msg_bundle = Bundle::try_from(truncated_msg);
 	assert!(truncated_msg_bundle.is_err());
-	assert_eq!(truncated_msg_bundle, Err(TypeError::InvalidPacket));
+	assert_eq!(truncated_msg_bundle, Err(Error::Packet(PacketError::Invalid)));
 }
