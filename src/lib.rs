@@ -20,7 +20,6 @@
 #![warn(clippy::option_if_let_else)]
 #![warn(clippy::or_fun_call)]
 #![warn(clippy::partial_pub_fields)]
-// #![warn(clippy::pub_use)]
 #![warn(clippy::redundant_type_annotations)]
 #![warn(clippy::renamed_function_params)]
 #![warn(clippy::return_self_not_must_use)]
@@ -32,7 +31,6 @@
 #![warn(clippy::unwrap_in_result)]
 #![warn(clippy::unwrap_used)]
 #![warn(clippy::use_self)]
-// #![warn(clippy::non_std_lazy_statics)]
 
 /// Enums and static data
 pub mod enums;
