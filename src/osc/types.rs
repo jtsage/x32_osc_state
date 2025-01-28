@@ -455,7 +455,7 @@ impl From<TimeTag> for SystemTime {
 #[cfg(test)]
 mod time_tag_test {
     use super::TimeTag;
-    use std::{fmt, time::{Duration, SystemTime, UNIX_EPOCH}};
+    use std::time::SystemTime;
     
     #[test]
     fn time_future_test() {

@@ -64,6 +64,7 @@ impl fmt::Display for Buffer {
         write!(f, "{display_string}")
     }
 }
+
 // MARK: Vec<u8>->Buffer
 impl From<Vec<u8>> for Buffer {
     fn from(data: Vec<u8>) -> Self { Self { data } }

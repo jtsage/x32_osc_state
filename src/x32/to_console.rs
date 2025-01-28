@@ -1,21 +1,12 @@
 use crate::osc::{Message, Buffer};
-use super::util;
+use super::super::enums::FaderIndex;
+// use super::util;
 
 #[derive(Debug, PartialEq, PartialOrd, Eq, Ord)]
 /// Get info from the console
 pub enum ConsoleRequest {
     /// Matrix with index
-    Matrix(u8),
-    /// Bus with index
-    Bus(u8),
-    /// DCA with index
-    Dca(u8),
-    /// Channel with index
-    Channel(u8),
-    /// Aux with index
-    Aux(u8),
-    /// Main with index, 1 = ST, 2 = M
-    Main(u8),
+    Fader(FaderIndex),
     /// Cue, Scene, and Snippet list
     ShowInfo(),
     /// Show mode
@@ -32,17 +23,17 @@ impl ConsoleRequest {
     pub fn full_update() -> Vec<Buffer> {
         let mut buffers:Vec<Buffer> = vec![];
 
-        buffers.extend(ConsoleRequest::ShowInfo());
-        buffers.extend(ConsoleRequest::ShowMode());
-        buffers.extend(ConsoleRequest::CurrentCue());
-        buffers.extend(ConsoleRequest::Main(1));
-        buffers.extend(ConsoleRequest::Main(2));
+        buffers.extend(Self::ShowInfo());
+        buffers.extend(Self::ShowMode());
+        buffers.extend(Self::CurrentCue());
+        buffers.extend(Self::Fader(FaderIndex::Main(1)));
+        buffers.extend(Self::Fader(FaderIndex::Main(2)));
 
-        let aux:Vec<Buffer> = (1..=8).flat_map(ConsoleRequest::Aux).collect();
-        let mtx:Vec<Buffer> = (1..=6).flat_map(ConsoleRequest::Matrix).collect();
-        let bus:Vec<Buffer> = (1..=16).flat_map(ConsoleRequest::Bus).collect();
-        let dca:Vec<Buffer> = (1..=8).flat_map(ConsoleRequest::Dca).collect();
-        let ch:Vec<Buffer>  = (1..=32).flat_map(ConsoleRequest::Channel).collect();
+        let aux:Vec<Buffer> = (1..=8).flat_map(|i|Self::Fader(FaderIndex::Aux(i))).collect();
+        let mtx:Vec<Buffer> = (1..=6).flat_map(|i|Self::Fader(FaderIndex::Matrix(i))).collect();
+        let bus:Vec<Buffer> = (1..=16).flat_map(|i|Self::Fader(FaderIndex::Bus(i))).collect();
+        let dca:Vec<Buffer> = (1..=8).flat_map(|i|Self::Fader(FaderIndex::Dca(i))).collect();
+        let ch:Vec<Buffer>  = (1..=32).flat_map(|i|Self::Fader(FaderIndex::Channel(i))).collect();
 
         buffers.extend(aux);
         buffers.extend(mtx);
@@ -59,49 +50,25 @@ impl IntoIterator for ConsoleRequest {
     type IntoIter = std::vec::IntoIter<Self::Item>;
 
     fn into_iter(self) -> Self::IntoIter {
-        <ConsoleRequest as Into<Vec<Buffer>>>::into(self).into_iter()
+        <Self as Into<Vec<Buffer>>>::into(self).into_iter()
     }
 }
 
 impl From<ConsoleRequest> for Vec<Buffer> {
-    // NOTE : FaderIndex should include a update message - direct buffefr?
     fn from(value: ConsoleRequest) -> Self {
         match value {
-            ConsoleRequest::Bus(v) => vec![
-                util::new_node_buffer(format!("bus/{v:02}/mix")),
-                util::new_node_buffer(format!("bus/{v:02}/config")),
-            ],
-            ConsoleRequest::Dca(v) => vec![
-                util::new_node_buffer(format!("dca/{v}")),
-                util::new_node_buffer(format!("dca/{v}/config")),
-            ],
-            ConsoleRequest::Channel(v) => vec![
-                util::new_node_buffer(format!("ch/{v:02}/mix")),
-                util::new_node_buffer(format!("ch/{v:02}/config")),
-            ],
-            ConsoleRequest::Aux(v) => vec![
-                util::new_node_buffer(format!("auxin/{v:02}/mix")),
-                util::new_node_buffer(format!("auxin/{v:02}/config")),
-            ],
-            ConsoleRequest::Matrix(v) => vec![
-                util::new_node_buffer(format!("mtx/{v:02}/mix")),
-                util::new_node_buffer(format!("mtx/{v:02}/config")),
-            ],
+            ConsoleRequest::Fader(v) => v.get_x32_update(),
             ConsoleRequest::ShowInfo() => vec![
                 Message::new("/showdata").try_into().unwrap_or_default()
             ],
             ConsoleRequest::ShowMode() => vec![
-                util::new_node_buffer(String::from("-prefs/show_control"))
+                Message::new_string("/node", "-prefs/show_control").try_into().unwrap_or_default()
             ],
             ConsoleRequest::CurrentCue() => vec![
-                util::new_node_buffer(String::from("-show/prepos/current"))
+                Message::new_string("/node", "-show/prepos/current").try_into().unwrap_or_default()
             ],
             ConsoleRequest::KeepAlive() => vec![
                 Message::new("/xremote").try_into().unwrap_or_default()
-            ],
-            ConsoleRequest::Main(v) => vec![
-                util::new_node_buffer(format!("main/{}/mix", if v == 1 { "st" } else { "m"} )),
-                util::new_node_buffer(format!("main/{}/config", if v == 1 { "st" } else { "m"} ))
             ],
         }
     }

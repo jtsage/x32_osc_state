@@ -8,7 +8,7 @@ use std::time::Duration;
 #[tokio::main]
 async fn main() -> io::Result<()> {
     let mut x32_state = x32::X32Console::default();
-    let x32_all = x32::ConsoleRequest::full_update();
+    let x32_all = x32::x32::ConsoleRequest::full_update();
 
     let x32 = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(192, 168, 1, 77)), 10023);
     let sock = UdpSocket::bind("0.0.0.0:10023".parse::<SocketAddr>().unwrap()).await?;
@@ -36,7 +36,7 @@ async fn main() -> io::Result<()> {
     tokio::spawn(async move {
         loop {
             println!("sending xremote");
-            s.send_to(x32::XREMOTE.as_slice(), x32).await.expect("broken socket");
+            s.send_to(x32::enums::X32_XREMOTE.as_slice(), x32).await.expect("broken socket");
             tokio::time::sleep(Duration::from_secs(5)).await;
         }
     });
@@ -45,7 +45,7 @@ async fn main() -> io::Result<()> {
     let mut buf = [0; 1024];
     loop {
         let (len, addr) = r.recv_from(&mut buf).await?;
-        let buffer = x32::OSCBuffer::from(buf.clone().to_vec());
+        let buffer = x32::osc::Buffer::from(buf.clone().to_vec());
         x32_state.process(buffer);
         println!("{:?} bytes received from {:?}", len, addr);
     }

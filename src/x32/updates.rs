@@ -1,7 +1,38 @@
 use super::super::enums::{Error, FaderIndex, Fader};
 
 
+/// CUE record
+#[derive(Debug, PartialEq, PartialOrd, Eq, Ord)]
+pub struct CueUpdate {
+    /// index in list
+    pub index : usize,
+    /// Displayed cue number
+    pub cue_number : String,
+    /// Cue name
+    pub name : String,
+    /// associated snippet (or None)
+    pub snippet : Option<usize>,
+    /// associated scene (or None)
+    pub scene : Option<usize>,
+}
 
+/// Snippet record
+#[derive(Debug, PartialEq, PartialOrd, Eq, Ord)]
+pub struct SnippetUpdate {
+    /// index
+    pub index : usize,
+    /// display name
+    pub name : String,
+}
+
+/// Scene record
+#[derive(Debug, PartialEq, PartialOrd, Eq, Ord)]
+pub struct SceneUpdate {
+    /// index
+    pub index : usize,
+    /// display name
+    pub name : String,
+}
 
 /// Fader update processed
 #[derive(Debug, PartialEq, PartialOrd, Clone)]
@@ -17,7 +48,7 @@ pub struct FaderUpdate {
 }
 
 impl Default for FaderUpdate {
-    fn default() -> Self { FaderUpdate {
+    fn default() -> Self { Self {
         source : FaderIndex::Unknown,
         label : None,
         level : None,

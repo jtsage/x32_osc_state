@@ -3,8 +3,14 @@ use std::fmt;
 use std::sync::LazyLock;
 use regex::Regex;
 
+/// Pull fader level from node string
 static LVL_STRING: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"^(?<level>[+\-0-9.]+)").expect("unable to compile pattern")
+});
+
+/// Split node string on whitespace, skipping quoted items
+pub static NODE_STRING: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r#"[^\s"]+|"([^"]*)""#).expect("unable to compile pattern")
 });
 
 // lazy_static! {
@@ -93,6 +99,8 @@ pub enum ShowMode {
 
 impl ShowMode {
     /// Get from an integer
+    #[must_use]
+    #[inline]
     pub fn from_int(v : i32) -> Self {
         match v {
             1 => Self::Scenes,
@@ -102,7 +110,9 @@ impl ShowMode {
     }
 
     /// Get from a string
-    pub fn from_str(v : &str) -> Self {
+    #[must_use]
+    #[inline]
+    pub fn from_const(v : &str) -> Self {
         match v {
             "SCENES" => Self::Scenes,
             "SNIPPETS" => Self::Snippets,
@@ -111,63 +121,120 @@ impl ShowMode {
     }
 }
 
+/// Show cue structure
+#[derive(Debug, Clone)]
+pub struct ShowCue {
+    /// Displayed cue number
+    pub cue_number : String,
+    /// Cue name
+    pub name : String,
+    /// associated snippet (or None)
+    pub snippet : Option<usize>,
+    /// associated scene (or None)
+    pub scene : Option<usize>,
+}
+
 #[derive(Debug, Default, PartialEq, PartialOrd, Clone, Eq, Ord)]
 /// Types of faders
 pub enum FaderIndex {
     /// auxin's, 1-8 (last 2 are USB typically)
-    Aux(u8),
+    Aux(usize),
     /// Matrix sends, 1-6
-    Matrix(u8),
+    Matrix(usize),
     /// Main = 1, Mono/M/C = 2
-    Main(u8),
+    Main(usize),
     /// Channels, 1-32
-    Channel(u8),
+    Channel(usize),
     /// DCA, 1-8
-    Dca(u8),
+    Dca(usize),
     /// Mix Bus, 1-16
-    Bus(u8),
+    Bus(usize),
     /// Unknown fader type
     #[default]
     Unknown
 }
 
 impl FaderIndex {
+    /// Get index (1-based) of the fader
+    #[must_use]
+    pub fn get_index(&self) -> usize {
+        match self {
+            Self::Aux(v) | Self::Matrix(v) | Self::Bus(v) |
+            Self::Main(v) | Self::Channel(v) | Self::Dca(v) => *v,
+            Self::Unknown => 0,
+        }
+    }
+
+    /// Get the default label for this fader
+    #[must_use]
     pub fn default_label(&self) -> String {
         match self {
             Self::Aux(v) => format!("Aux{v:02}"),
             Self::Matrix(v) => format!("Mtx{v:02}"),
-            Self::Main(v) => if *v == 2_u8 { String::from("M/C") } else { String::from("Main") },
+            Self::Main(v) => if *v == 2 { String::from("M/C") } else { String::from("Main") },
             Self::Channel(v) => format!("Ch{v:02}",),
             Self::Dca(v) => format!("DCA{v}"),
             Self::Bus(v) => format!("MixBus{v:02}"),
             Self::Unknown => String::new(),
         }
     }
-    pub fn get_address(&self) -> String {
+
+    /// Get the X32 address for this fader
+    #[must_use]
+    pub fn get_x32_address(&self) -> String {
         match self {
             Self::Unknown => String::new(),
-            Self::Aux(v) => format!("/aux/{v:02}"),
+            Self::Aux(v) => format!("/auxin/{v:02}"),
             Self::Matrix(v) => format!("/mtx/{v:02}"),
-            Self::Main(v) => if *v == 2_u8 { String::from("/main/m") } else { String::from("/main/st") },
+            Self::Main(v) => if *v == 2 { String::from("/main/m") } else { String::from("/main/st") },
             Self::Channel(v) => format!("/ch/{v:02}"),
             Self::Dca(v) => format!("/dca/{v}"),
             Self::Bus(v) => format!("/bus/{v:02}"),
         }
     }
+
+    /// Get the VOR output address for this fader
+    #[must_use]
+    pub fn get_vor_address(&self) -> String {
+        match self {
+            Self::Main(v) => format!("/main/{v:02}"),
+            _ => self.get_x32_address(),
+        }
+    }
+
+    /// Get a vector of OSC messages that will force
+    /// the X32 to update this fader
+    #[must_use]
+    pub fn get_x32_update(&self) -> Vec<super::osc::Buffer> {
+        let address = self.get_x32_address();
+        match self {
+            Self::Unknown => vec![super::osc::Buffer::default()],
+            Self::Dca(_) => vec![
+                super::osc::Message::new_string("/node", &address).try_into().unwrap_or_default(),
+                super::osc::Message::new_string("/node", &format!("{address}/config")).try_into().unwrap_or_default(),
+            ],
+            _ => vec![
+                super::osc::Message::new_string("/node", &format!("{address}/mix")).try_into().unwrap_or_default(),
+                super::osc::Message::new_string("/node", &format!("{address}/config")).try_into().unwrap_or_default(),
+            ],
+        }
+    }
 }
 
+/// Fader index - string type, integer index (1-based)
 type FaderIndexStrInt = (String, i32);
+/// Fader index - string type, string index (1-based)
 type FaderIndexStrStr = (String, String);
 
 impl TryFrom<FaderIndexStrInt> for FaderIndex {
     type Error = Error;
 
     fn try_from(value: FaderIndexStrInt) -> Result<Self, Self::Error> {
-        if let Ok(index) = u8::try_from(value.1) {
+        if let Ok(index) = usize::try_from(value.1) {
             match value.0.as_str() {
                 _ if index == 0 => Err(Error::X32(X32Error::InvalidFader)),
                 "mtx" if index <= 6 => Ok(Self::Matrix(index)),
-                "aux" if index <= 8 => Ok(Self::Aux(index)),
+                "auxin" if index <= 8 => Ok(Self::Aux(index)),
                 "dca" if index <= 8 => Ok(Self::Dca(index)),
                 "main" if index <= 2 => Ok(Self::Main(index)),
                 "ch" if index <= 32 => Ok(Self::Channel(index)),
@@ -198,8 +265,9 @@ impl TryFrom<FaderIndexStrStr> for FaderIndex {
     }
 }
 
-
-#[derive(Debug, Clone)]
+/* */
+/// Internal fader tracking
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub struct Fader {
     /// fader index, with type. 
     source : FaderIndex,
@@ -246,8 +314,22 @@ impl Fader {
         ( self.is_on, String::from(if self.is_on { "ON" } else { "OFF" }) )
     }
 
+    /// Get the vor update message for this fader
+    #[must_use]
+    pub fn vor_message(&self) -> super::osc::Message {
+        super::osc::Message::new_string(
+            &self.source.get_vor_address(),
+            &format!("[{:02}] {:>3} {:>8} {}",
+                self.source.get_index(),
+                self.is_on().1,
+                self.level().1,
+                self.name()
+            )
+        )
+    }
+
     /// update fader from OSC data
-    pub fn update(&mut self, update : super::x32::FaderUpdate) {
+    pub fn update(&mut self, update : super::x32::updates::FaderUpdate) {
         if let Some(new_level) = update.level {
             self.level = new_level;
         }
@@ -261,9 +343,9 @@ impl Fader {
         }
     }
 
-    
     /// Get is on property from ON/OFF
     #[must_use]
+    #[inline]
     pub fn is_on_from_string(v : &str) -> bool { v == "ON" }
 
     /// Get string level from float
@@ -303,4 +385,94 @@ impl Fader {
             0_f32
         }
     }
+}
+
+
+/// Full tracked fader banks
+#[derive(Debug, Clone)]
+pub struct FaderBank {
+    /// main and mono
+    main : [Fader;2],
+    /// matrix (6)
+    matrix : [Fader;6],
+    /// aux in (8)
+    aux : [Fader;8],
+    /// DCA (8)
+    dca : [Fader;8],
+    /// mix bus (16)
+    bus : [Fader;16],
+    /// channels (32)
+    channel : [Fader;32],
+}
+
+
+impl FaderBank {
+    /// create new fader bank
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            main    : core::array::from_fn(|i| Fader::new(FaderIndex::Main(i+1))),
+            matrix  : core::array::from_fn(|i| Fader::new(FaderIndex::Matrix(i+1))),
+            bus     : core::array::from_fn(|i| Fader::new(FaderIndex::Bus(i+1))),
+            channel : core::array::from_fn(|i| Fader::new(FaderIndex::Channel(i+1))),
+            aux     : core::array::from_fn(|i| Fader::new(FaderIndex::Aux(i+1))),
+            dca     : core::array::from_fn(|i| Fader::new(FaderIndex::Dca(i+1))),
+        }
+    }
+
+    /// Reset faders
+    pub fn reset(&mut self) {
+        let update = crate::x32::updates::FaderUpdate {
+            label: Some(String::new()),
+            level: Some(0_f32),
+            is_on: Some(false),
+            ..Default::default() };
+
+        self.main.iter_mut().for_each(|f| f.update(update.clone()));
+        self.aux.iter_mut().for_each(|f| f.update(update.clone()));
+        self.bus.iter_mut().for_each(|f| f.update(update.clone()));
+        self.dca.iter_mut().for_each(|f| f.update(update.clone()));
+        self.channel.iter_mut().for_each(|f| f.update(update.clone()));
+        self.matrix.iter_mut().for_each(|f| f.update(update.clone()));
+    }
+
+    /// Update a fader
+    pub fn update(&mut self, update : crate::x32::updates::FaderUpdate) {
+        if let Some(fader) = self.get_mut(&update.source) {
+            fader.update(update);
+        }
+    }
+
+    /// Get a mutable fader, zero based index
+    pub fn get_mut(&mut self, f_type: &FaderIndex) -> Option<&mut Fader> {
+        let index = f_type.get_index() - 1;
+        match f_type {
+            FaderIndex::Aux(_) => self.aux.get_mut(index),
+            FaderIndex::Matrix(_) => self.matrix.get_mut(index),
+            FaderIndex::Main(_) => self.main.get_mut(index),
+            FaderIndex::Channel(_) => self.channel.get_mut(index),
+            FaderIndex::Dca(_) => self.dca.get_mut(index),
+            FaderIndex::Bus(_) => self.bus.get_mut(index),
+            FaderIndex::Unknown => None,
+        }
+    }
+
+    /// Get a fader, zero based index
+    #[must_use]
+    pub fn get(&self, f_type: &FaderIndex) -> Option<Fader> {
+        let index = f_type.get_index() - 1;
+        match f_type {
+            FaderIndex::Aux(_) => self.aux.get(index).cloned(),
+            FaderIndex::Matrix(_) => self.matrix.get(index).cloned(),
+            FaderIndex::Main(_) => self.main.get(index).cloned(),
+            FaderIndex::Channel(_) => self.channel.get(index).cloned(),
+            FaderIndex::Dca(_) => self.dca.get(index).cloned(),
+            FaderIndex::Bus(_) => self.bus.get(index).cloned(),
+            FaderIndex::Unknown => None,
+        }
+    }
+}
+
+impl Default for FaderBank {
+    fn default() -> Self { Self::new() }
 }

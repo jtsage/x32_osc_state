@@ -1,17 +1,14 @@
-use super::enums::Error;
+// use super::enums::Error;
 
 
-/// X32 Utility functions
-pub mod util;
 /// `osc::Message` to the console
 mod to_console;
 /// `osc::Message` from the console
 mod from_console;
-mod faders;
-
-pub use faders::FaderUpdate;
+/// Update packets for state
+pub mod updates;
 
 pub use to_console::ConsoleRequest;
-pub use from_console::{ConsoleMessage, CueUpdate, SceneUpdate, SnippetUpdate};
+pub use from_console::ConsoleMessage;
 
 

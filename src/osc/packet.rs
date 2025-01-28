@@ -92,6 +92,28 @@ impl Message {
         }
     }
 
+    /// Create a new message with a single string argument
+    #[must_use]
+    pub fn new_string(address: &str, data: &str) -> Self {
+        Self {
+            address : address.to_owned(),
+            args : vec![Type::String(data.to_owned())],
+            force_empty_args : false
+        }
+    }
+
+    /// Get the first argument, with a sane default
+    /// Note that type is determined by the type of the default
+    pub fn first_default<T>(&self, default: T) -> T  where 
+        Type: std::convert::TryInto<T>
+    {
+        if let Some(a) = self.args.first() {
+            a.clone().try_into().unwrap_or(default)
+        } else {
+            default
+        }
+    }
+
     /// Boolean is message valid
     #[must_use]
     pub fn is_valid(&self) -> bool {
@@ -147,20 +169,20 @@ impl fmt::Display for Message {
 }
 
 // MARK: Message->Buffer
-impl TryInto<Buffer> for Message {
+impl TryFrom<Message> for Buffer {
     type Error = enums::Error;
 
-    fn try_into(self) -> Result<Buffer, Self::Error> {
-        if !self.is_valid() { return Err(enums::Error::Packet(enums::PacketError::Invalid)); }
+    fn try_from(value: Message) -> Result<Self, Self::Error> {
+        if !value.is_valid() { return Err(enums::Error::Packet(enums::PacketError::Invalid)); }
 
-        let mut osc_buffer:Buffer = Type::String(self.address.clone()).into();
+        let mut osc_buffer = <Type as Into<Self>>::into(Type::String(value.address.clone()));//.into();
 
-        if self.force_empty_args && self.args.is_empty() {
-            osc_buffer.extend(&Buffer::from(vec![0x2c, 0x0, 0x0, 0x0]));
+        if value.force_empty_args && value.args.is_empty() {
+            osc_buffer.extend(&Self::from(vec![0x2c, 0x0, 0x0, 0x0]));
         } else {
-            osc_buffer.extend(&<Type as Into<Buffer>>::into(self.type_list()));
+            osc_buffer.extend(&<Type as Into<Self>>::into(value.type_list()));
         }
-        osc_buffer.extend(&self.pack_args());
+        osc_buffer.extend(&value.pack_args());
 
         Ok(osc_buffer)
     }
@@ -210,16 +232,16 @@ impl TryFrom<Buffer> for Message {
 }
 
 // MARK: Bundle->Buffer
-impl TryInto<Buffer> for Bundle {
+impl TryFrom<Bundle> for Buffer {
     type Error = enums::Error;
 
-    fn try_into(self) -> Result<Buffer, Self::Error> {
-        let mut buffer = Buffer::from(enums::BUNDLE_TAG.to_vec());
+    fn try_from(value: Bundle) -> Result<Self, Self::Error> {
+        let mut buffer = Self::from(enums::BUNDLE_TAG.to_vec());
 
-        buffer.extend(&Type::TimeTag(self.time).into());
+        buffer.extend(&Type::TimeTag(value.time).into());
         
-        for item in self.messages.clone() {
-            let item_buffer:Buffer = item.try_into()?;
+        for item in value.messages.clone() {
+            let item_buffer = Self::try_from(item)?;
             let item_length = item_buffer.len();
 
             #[expect(clippy::cast_possible_truncation)]
@@ -277,13 +299,13 @@ impl TryFrom<Buffer> for Bundle {
 }
 
 // MARK: Packet->Buffer
-impl TryInto<Buffer> for Packet {
+impl TryFrom<Packet> for Buffer {
     type Error = enums::Error;
 
-    fn try_into(self) -> Result<Buffer, Self::Error> {
-        match self {
-            Self::Message(v) => v.try_into(),
-            Self::Bundle(v) => v.try_into(),
+    fn try_from(value: Packet) -> Result<Self, Self::Error> {
+        match value {
+            Packet::Message(v) => v.try_into(),
+            Packet::Bundle(v) => v.try_into(),
         }
     }
 }
