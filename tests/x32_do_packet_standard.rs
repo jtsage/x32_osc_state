@@ -7,7 +7,7 @@ mod buffer_common;
 use buffer_common::random_data;
 
 fn level_test(fader: FaderIndex, level: f32) {
-    let mut msg = osc::Message::new(&format!("{}/mix/fader", fader.get_x32_address()));
+    let mut msg = osc::Message::new(&format!("/{}/mix/fader", fader.get_x32_address()));
 
     msg.add_item(level);
 
@@ -21,7 +21,7 @@ fn level_test(fader: FaderIndex, level: f32) {
 }
 
 fn mute_test(fader: FaderIndex, is_on: bool) {
-    let mut msg = osc::Message::new(&format!("{}/mix/on", fader.get_x32_address()));
+    let mut msg = osc::Message::new(&format!("/{}/mix/on", fader.get_x32_address()));
 
     msg.add_item(is_on as i32);
 
@@ -36,7 +36,7 @@ fn mute_test(fader: FaderIndex, is_on: bool) {
 }
 
 fn name_test(fader: FaderIndex, name : &str) {
-    let address = &format!("{}/config/name", fader.get_x32_address());
+    let address = &format!("/{}/config/name", fader.get_x32_address());
     let mut msg = osc::Message::new(&address);
 
     msg.add_item(name.to_owned());

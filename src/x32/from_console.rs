@@ -39,7 +39,6 @@ impl TryFrom<Message> for ConsoleMessage {
                     .unwrap_or_default()
                     .clone()
                     .try_into()?;
-
                 Self::try_from_node(node_arg.as_str())
             },
             _ => Self::try_from_standard_osc(&msg)

@@ -359,7 +359,6 @@ impl From<TimeTag> for Vec<u8> {
 //  MARK: TimeTag impl
 impl TimeTag {
     /// get a now time tag
-    #[expect(clippy::single_call_fn)]
     #[inline]
     #[must_use]
     pub fn now() -> Self {

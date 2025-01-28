@@ -59,6 +59,15 @@ impl Bundle {
         }
     }
 
+    /// Make a new bundle with pre-built messages
+    #[must_use]
+    pub fn new_with_messages(messages: Vec<Packet>) -> Self {
+        Self {
+            time : TimeTag::now(),
+            messages
+        }
+    }
+
     /// Make a new future bundle (add "ms" to now)
     #[must_use]
     #[inline]

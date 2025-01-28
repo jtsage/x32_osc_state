@@ -25,7 +25,7 @@ fn make_and_test_cues() {
 
 	state.process(make_node_message("/-show/showfile/snippet/000 \"Snip-001\" 1 1 0 32768 1 "));
 
-	println!("{:?}", state.cue_list_size());
+	// println!("{:?}", state.cue_list_size());
 
 	assert_eq!(state.active_cue(), "Cue: 0.0.0 :: -- [--] [--]");
 	state.process(make_node_message("/-show/prepos/current 0"));

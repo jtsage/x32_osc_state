@@ -184,12 +184,12 @@ impl FaderIndex {
     pub fn get_x32_address(&self) -> String {
         match self {
             Self::Unknown => String::new(),
-            Self::Aux(v) => format!("/auxin/{v:02}"),
-            Self::Matrix(v) => format!("/mtx/{v:02}"),
-            Self::Main(v) => if *v == 2 { String::from("/main/m") } else { String::from("/main/st") },
-            Self::Channel(v) => format!("/ch/{v:02}"),
-            Self::Dca(v) => format!("/dca/{v}"),
-            Self::Bus(v) => format!("/bus/{v:02}"),
+            Self::Aux(v) => format!("auxin/{v:02}"),
+            Self::Matrix(v) => format!("mtx/{v:02}"),
+            Self::Main(v) => if *v == 2 { String::from("main/m") } else { String::from("main/st") },
+            Self::Channel(v) => format!("ch/{v:02}"),
+            Self::Dca(v) => format!("dca/{v}"),
+            Self::Bus(v) => format!("bus/{v:02}"),
         }
     }
 
@@ -198,7 +198,7 @@ impl FaderIndex {
     pub fn get_vor_address(&self) -> String {
         match self {
             Self::Main(v) => format!("/main/{v:02}"),
-            _ => self.get_x32_address(),
+            _ => format!("/{}", self.get_x32_address()),
         }
     }
 
@@ -316,8 +316,8 @@ impl Fader {
 
     /// Get the vor update message for this fader
     #[must_use]
-    pub fn vor_message(&self) -> super::osc::Message {
-        super::osc::Message::new_string(
+    pub fn vor_message(&self) -> super::osc::Packet {
+        super::osc::Packet::Message(super::osc::Message::new_string(
             &self.source.get_vor_address(),
             &format!("[{:02}] {:>3} {:>8} {}",
                 self.source.get_index(),
@@ -325,7 +325,7 @@ impl Fader {
                 self.level().1,
                 self.name()
             )
-        )
+        ))
     }
 
     /// update fader from OSC data
@@ -405,6 +405,21 @@ pub struct FaderBank {
     channel : [Fader;32],
 }
 
+/// Keys to the fader banks
+pub enum FaderBankKey {
+    /// main (2)
+    Main,
+    /// matrix (6)
+    Matrix,
+    /// aux (8)
+    Aux,
+    /// bus (16)
+    Bus,
+    /// DCA (8)
+    Dca,
+    /// Channel (32)
+    Channel
+}
 
 impl FaderBank {
     /// create new fader bank
@@ -418,6 +433,20 @@ impl FaderBank {
             aux     : core::array::from_fn(|i| Fader::new(FaderIndex::Aux(i+1))),
             dca     : core::array::from_fn(|i| Fader::new(FaderIndex::Dca(i+1))),
         }
+    }
+
+    /// Get vor messages for an entire bank
+    pub fn vor_bundle(&self, key : &FaderBankKey) -> Vec<super::osc::Packet> {
+        let a = match key {
+            FaderBankKey::Main => self.main.to_vec(),
+            FaderBankKey::Matrix => self.matrix.to_vec(),
+            FaderBankKey::Aux => self.aux.to_vec(),
+            FaderBankKey::Bus => self.bus.to_vec(),
+            FaderBankKey::Dca => self.dca.to_vec(),
+            FaderBankKey::Channel => self.channel.to_vec(),
+        };
+
+        a.iter().map(Fader::vor_message).collect()
     }
 
     /// Reset faders
