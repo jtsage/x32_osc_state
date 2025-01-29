@@ -105,6 +105,13 @@ fn decode_unknown_type() {
 }
 
 #[test]
+fn encode_unknown_type() {
+    let osc_type = Type::Unknown();
+
+    assert_eq!(osc_type.get_type_char().unwrap_err(), Error::OSC(OSCError::UnknownType));
+}
+
+#[test]
 fn cast_default_type() {
     let osc_type:Type = Default::default();
 

@@ -265,7 +265,73 @@ impl TryFrom<FaderIndexStrStr> for FaderIndex {
     }
 }
 
-/* */
+/// Fader color
+#[expect(missing_docs)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
+pub enum FaderColor {
+    Off,
+    Red,
+    Green,
+    Yellow,
+    Blue,
+    Magenta,
+    Cyan,
+    #[default]
+    White,
+    RedInverted,
+    GreenInverted,
+    YellowInverted,
+    BlueInverted,
+    MagentaInverted,
+    CyanInverted,
+    WhiteInverted,
+}
+
+impl FaderColor {
+    /// Get color from index
+    #[must_use]
+    pub fn parse_int(v: i32) -> Self {
+        match v {
+            1 => Self::Red,
+            2 => Self::Green,
+            3 => Self::Yellow,
+            4 => Self::Blue,
+            5 => Self::Magenta,
+            6 => Self::Cyan,
+            7 => Self::White,
+            9 => Self::RedInverted,
+            10 => Self::GreenInverted,
+            11 => Self::YellowInverted,
+            12 => Self::BlueInverted,
+            13 => Self::MagentaInverted,
+            14 => Self::CyanInverted,
+            15 => Self::WhiteInverted,
+            _ => Self::Off,
+        }
+    }
+    /// Read from pre-defined color string
+    #[must_use]
+    pub fn parse_str(v: &str) -> Self {
+        match v {
+            "OFF" | "OFFi" => Self::Off, 
+            "RD" => Self::Red,
+            "GN" => Self::Green,
+            "YE" => Self::Yellow,
+            "BL" => Self::Blue,
+            "MG" => Self::Magenta,
+            "CY" => Self::Cyan,
+            "RDi" => Self::RedInverted,
+            "GNi" => Self::GreenInverted,
+            "YEi" => Self::YellowInverted,
+            "BLi" => Self::BlueInverted,
+            "MGi" => Self::MagentaInverted,
+            "CYi" => Self::CyanInverted,
+            "WHi" => Self::WhiteInverted,
+            _ => Self::White,
+        }
+    }
+}
+
 /// Internal fader tracking
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub struct Fader {
@@ -276,7 +342,9 @@ pub struct Fader {
     /// level of fader, as number
     level : f32,
     /// mute status, as bool
-    is_on : bool
+    is_on : bool,
+    /// Fader color
+    color : FaderColor,
 }
 
 
@@ -286,6 +354,7 @@ impl Fader {
     pub fn new(source : FaderIndex) -> Self {
         Self {
             source,
+            color : FaderColor::default(),
             label : String::new(),
             level : 0_f32,
             is_on : false
@@ -300,6 +369,12 @@ impl Fader {
         } else {
             self.label.clone()
         }
+    }
+
+    /// Get color
+    #[must_use]
+    pub fn color(&self) -> FaderColor {
+        self.color
     }
 
     /// get fader level
@@ -340,6 +415,10 @@ impl Fader {
 
         if let Some(new_label) = update.label {
             self.label = new_label;
+        }
+
+        if let Some(new_color) = update.color {
+            self.color = new_color;
         }
     }
 
@@ -455,6 +534,7 @@ impl FaderBank {
             label: Some(String::new()),
             level: Some(0_f32),
             is_on: Some(false),
+            color: Some(FaderColor::White),
             ..Default::default() };
 
         self.main.iter_mut().for_each(|f| f.update(update.clone()));

@@ -152,3 +152,37 @@ fn invalid_bundle_buffers() {
 	assert!(truncated_msg_bundle.is_err());
 	assert_eq!(truncated_msg_bundle, Err(Error::Packet(PacketError::Invalid)));
 }
+
+
+#[test]
+fn single_message_one_step() {
+	
+	let mut message = Message::new("/hello");
+	message.add_item(23_i32);
+
+	let bundle = Bundle::new_with_messages(vec![Packet::Message(message)]);
+
+	let data = Packet::Bundle(bundle.clone());
+	let buffer:Buffer = data.clone().try_into().expect("unable to pack buffer");
+
+	assert!(buffer.is_valid());
+	assert_eq!(buffer.len(), 36);
+
+	let re_read:Packet = buffer.clone().try_into().expect("unable to pack struct");
+
+	assert!(data.to_string().starts_with("|#bundle•||t:["));
+	assert!(data.to_string().ends_with("]|M[|s:/hello••[8]||,:,i••[4]||i:23|]"));
+
+	assert!(re_read.to_string().starts_with("|#bundle•||t:["));
+	assert!(re_read.to_string().ends_with("]|M[|s:/hello••[8]||,:,i••[4]||i:23|]"));
+
+	assert_eq!(re_read, data);
+
+    match bundle.messages.get(0).unwrap() {
+        Packet::Message(msg) => {
+            let arg_1 = msg.args.get(0).expect("no args");
+            assert_eq!(<Type as TryInto<i32>>::try_into(arg_1.clone()), Ok(23_i32));
+        },
+        _ => { panic!("wrong payload")}
+    }
+}

@@ -1,4 +1,4 @@
-use x32_osc_state::enums::{Fader, FaderIndex};
+use x32_osc_state::enums::{Fader, FaderIndex, FaderColor};
 use x32_osc_state::osc;
 use x32_osc_state::X32Console;
 
@@ -25,6 +25,7 @@ fn make_and_test_cues() {
 
 	state.process(make_node_message("/-show/showfile/snippet/000 \"Snip-001\" 1 1 0 32768 1 "));
 
+	assert_eq!(state.cue_list_size(), (3,2,1));
 	// println!("{:?}", state.cue_list_size());
 
 	assert_eq!(state.active_cue(), "Cue: 0.0.0 :: -- [--] [--]");
@@ -80,6 +81,7 @@ fn make_and_test_faders() {
 	assert_eq!(aux_fader.name(), aux.2);
 	assert_eq!(aux_fader.level().0, Fader::level_from_string(&format!("{}", aux.0)));
 	assert_eq!(aux_fader.is_on().0, aux.1);
+	assert_eq!(aux_fader.color(), FaderColor::Red);
 
 	let bus_fader = state.fader(&FaderIndex::Bus(8)).expect("invalid fader");
 

@@ -1,5 +1,5 @@
 use crate::x32::updates::{CueUpdate, SnippetUpdate, SceneUpdate, FaderUpdate};
-use crate::enums::{Error, X32Error, ShowMode, NODE_STRING};
+use crate::enums::{Error, X32Error, ShowMode, NODE_STRING, FaderColor, FaderIndex};
 use crate::osc::{Buffer, Message};
 
 #[derive(Debug, PartialEq, PartialOrd)]
@@ -119,6 +119,18 @@ impl ConsoleMessage {
                 Ok(Self::Fader(fader_update))
             },
 
+            (_, _, "config", "color") => {
+                let source = FaderIndex::try_from((parts.0.to_owned(), parts.1.to_owned()))?;
+                let color = msg.first_default(1_i32);
+
+                println!("{color:?}  {msg:?}");
+                Ok(Self::Fader(FaderUpdate {
+                    source,
+                    color : Some(FaderColor::parse_int(color)),
+                    ..Default::default()
+                }))
+            },
+
             #[expect(clippy::cast_possible_truncation)]
             ("-show", "prepos", "current", "") => 
                 Ok(Self::CurrentCue(msg.first_default(-1_i32) as i16)),
@@ -158,7 +170,9 @@ impl ConsoleMessage {
                 let fader_update:FaderUpdate = (
                     parts.0.to_owned(),
                     parts.1.to_owned(),
-                    args[0].clone()
+                    args[0].clone(),
+                    args[1].clone(),
+                    args[2].clone()
                 ).try_into()?;
 
                 Ok(Self::Fader(fader_update))

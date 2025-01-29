@@ -1,5 +1,7 @@
 use x32_osc_state::x32::ConsoleMessage;
-use x32_osc_state::enums::Fader;
+use x32_osc_state::osc::Buffer;
+use x32_osc_state::enums::{Fader, FaderColor, FaderIndex};
+use x32_osc_state::enums::{Error, X32Error};
 
 #[test]
 fn address_split() {
@@ -67,4 +69,81 @@ fn check_level_conversion() {
         assert_eq!(Fader::level_from_string(v.1), v.0, "{} -> {}", v.1, v.0);
         assert_eq!(Fader::level_to_string(v.0), v.1, "{} -> {}", v.0, v.1);
     }
+}
+
+#[test]
+fn fader_color() {
+    assert_eq!(FaderColor::parse_str("OFF"), FaderColor::Off);
+    assert_eq!(FaderColor::parse_str("OFFi"), FaderColor::Off);
+    assert_eq!(FaderColor::parse_str("RD"), FaderColor::Red);
+    assert_eq!(FaderColor::parse_str("GN"), FaderColor::Green);
+    assert_eq!(FaderColor::parse_str("YE"), FaderColor::Yellow);
+    assert_eq!(FaderColor::parse_str("BL"), FaderColor::Blue);
+    assert_eq!(FaderColor::parse_str("MG"), FaderColor::Magenta);
+    assert_eq!(FaderColor::parse_str("CY"), FaderColor::Cyan);
+    assert_eq!(FaderColor::parse_str("RDi"), FaderColor::RedInverted);
+    assert_eq!(FaderColor::parse_str("GNi"), FaderColor::GreenInverted);
+    assert_eq!(FaderColor::parse_str("YEi"), FaderColor::YellowInverted);
+    assert_eq!(FaderColor::parse_str("BLi"), FaderColor::BlueInverted);
+    assert_eq!(FaderColor::parse_str("MGi"), FaderColor::MagentaInverted);
+    assert_eq!(FaderColor::parse_str("CYi"), FaderColor::CyanInverted);
+    assert_eq!(FaderColor::parse_str("WHi"), FaderColor::WhiteInverted);
+    assert_eq!(FaderColor::parse_str("WH"), FaderColor::White);
+
+    assert_eq!(FaderColor::parse_int(1), FaderColor::Red);
+    assert_eq!(FaderColor::parse_int(2), FaderColor::Green);
+    assert_eq!(FaderColor::parse_int(3), FaderColor::Yellow);
+    assert_eq!(FaderColor::parse_int(4), FaderColor::Blue);
+    assert_eq!(FaderColor::parse_int(5), FaderColor::Magenta);
+    assert_eq!(FaderColor::parse_int(6), FaderColor::Cyan);
+    assert_eq!(FaderColor::parse_int(7), FaderColor::White);
+    assert_eq!(FaderColor::parse_int(9), FaderColor::RedInverted);
+    assert_eq!(FaderColor::parse_int(10), FaderColor::GreenInverted);
+    assert_eq!(FaderColor::parse_int(11), FaderColor::YellowInverted);
+    assert_eq!(FaderColor::parse_int(12), FaderColor::BlueInverted);
+    assert_eq!(FaderColor::parse_int(13), FaderColor::MagentaInverted);
+    assert_eq!(FaderColor::parse_int(14), FaderColor::CyanInverted);
+    assert_eq!(FaderColor::parse_int(15), FaderColor::WhiteInverted);
+    assert_eq!(FaderColor::parse_int(8), FaderColor::Off);
+    assert_eq!(FaderColor::parse_int(0), FaderColor::Off);
+}
+
+#[test]
+fn fader_index_stuff() {
+    assert_eq!(FaderIndex::Main(1).get_vor_address(), "/main/01");
+    assert_eq!(FaderIndex::Aux(1).get_vor_address(), "/auxin/01");
+
+    assert_eq!(FaderIndex::Aux(1).default_label(), "Aux01");
+    assert_eq!(FaderIndex::Bus(1).default_label(), "MixBus01");
+    assert_eq!(FaderIndex::Dca(1).default_label(), "DCA1");
+    assert_eq!(FaderIndex::Channel(1).default_label(), "Ch01");
+    assert_eq!(FaderIndex::Matrix(1).default_label(), "Mtx01");
+    assert_eq!(FaderIndex::Main(1).default_label(), "Main");
+    assert_eq!(FaderIndex::Main(2).default_label(), "M/C");
+
+    assert_eq!(FaderIndex::Unknown.default_label(), "");
+    assert_eq!(FaderIndex::Unknown.get_x32_address(), "");
+    assert_eq!(FaderIndex::Unknown.get_vor_address(), "/");
+    assert_eq!(FaderIndex::Unknown.get_index(), 0);
+    assert_eq!(FaderIndex::Unknown.get_x32_update(), vec![Buffer::default()]);
+
+    let fake_fader = (String::from("boo"), String::from("01"));
+    let fake_fader:Result<FaderIndex, _> = fake_fader.try_into();
+
+    assert_eq!(fake_fader.unwrap_err(), Error::X32(X32Error::InvalidFader));
+
+    let fake_fader = (String::from("boo"), 1_i32);
+    let fake_fader:Result<FaderIndex, _> = fake_fader.try_into();
+
+    assert_eq!(fake_fader.unwrap_err(), Error::X32(X32Error::InvalidFader));
+
+    let fake_fader = (String::from("boo"), String::from("x"));
+    let fake_fader:Result<FaderIndex, _> = fake_fader.try_into();
+
+    assert_eq!(fake_fader.unwrap_err(), Error::X32(X32Error::InvalidFader));
+
+    let fake_fader = (String::from("boo"), -1_i32);
+    let fake_fader:Result<FaderIndex, _> = fake_fader.try_into();
+
+    assert_eq!(fake_fader.unwrap_err(), Error::X32(X32Error::InvalidFader));
 }

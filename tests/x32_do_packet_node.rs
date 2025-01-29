@@ -1,7 +1,7 @@
 use x32_osc_state::x32;
 use x32_osc_state::osc;
 use x32_osc_state::enums::{Error, X32Error, OSCError, PacketError};
-use x32_osc_state::enums::{ShowMode,FaderIndex,Fader};
+use x32_osc_state::enums::{ShowMode,FaderIndex,Fader,FaderColor};
 
 mod buffer_common;
 use buffer_common::random_data_node;
@@ -36,6 +36,7 @@ fn name_test(fader: FaderIndex, name : &str) {
 	let expected = x32::updates::FaderUpdate{
 		source: fader,
 		label: Some(name.to_owned()),
+		color : Some(FaderColor::Red),
 		..Default::default()
 	};
 

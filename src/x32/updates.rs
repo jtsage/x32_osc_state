@@ -1,4 +1,4 @@
-use super::super::enums::{Error, FaderIndex, Fader};
+use super::super::enums::{Error, FaderIndex, Fader, FaderColor};
 
 
 /// CUE record
@@ -44,7 +44,9 @@ pub struct FaderUpdate {
     /// level of fader, as number
     pub level : Option<f32>,
     /// mute status, as bool
-    pub is_on : Option<bool>
+    pub is_on : Option<bool>,
+    /// color
+    pub color : Option<FaderColor>
 }
 
 impl Default for FaderUpdate {
@@ -52,7 +54,8 @@ impl Default for FaderUpdate {
         source : FaderIndex::Unknown,
         label : None,
         level : None,
-        is_on : None
+        is_on : None,
+        color : None
     } }
 }
 
@@ -64,6 +67,8 @@ type StdFaderMessage = (String, String, f32);
 type StdMuteMessage = (String, String, i32);
 /// name from /fader/ or node s~ message
 type NameMessage = (String, String, String);
+/// config from /fader/ or node s~ message
+type ConfigMessage = (String, String, String, String, String);
 
 impl TryFrom<StdMuteMessage> for FaderUpdate {
     type Error = Error;
@@ -116,6 +121,21 @@ impl TryFrom<NameMessage> for FaderUpdate {
 
         Ok(Self {
             source,
+            label : Some(v.2.clone()),
+            ..Default::default()
+        })
+    }
+}
+
+impl TryFrom<ConfigMessage> for FaderUpdate {
+    type Error = Error;
+
+    fn try_from(v: ConfigMessage) -> Result<Self, Self::Error> {
+        let source = FaderIndex::try_from((v.0, v.1))?;
+
+        Ok(Self {
+            source,
+            color : Some(FaderColor::parse_str(&v.4)),
             label : Some(v.2.clone()),
             ..Default::default()
         })
