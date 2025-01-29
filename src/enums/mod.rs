@@ -1,5 +1,4 @@
 use std::fmt;
-// use lazy_static::lazy_static;
 use std::sync::LazyLock;
 use regex::Regex;
 
@@ -12,11 +11,6 @@ static LVL_STRING: LazyLock<Regex> = LazyLock::new(|| {
 pub static NODE_STRING: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"[^\s"]+|"([^"]*)""#).expect("unable to compile pattern")
 });
-
-// lazy_static! {
-//     static ref LVL_STRING: Regex = Regex::new(r"^(?<level>[+\-0-9.]+)").expect("unable to compile pattern");
-//     static ref NODE_STRING: Regex = Regex::new(r#"[^\s"]+|"([^"]*)""#).expect("unable to compile pattern");
-// }
 
 /// bundle tag, "#bundle", 8-byte
 pub const BUNDLE_TAG:[u8;8] = [0x23, 0x62, 0x75, 0x6e, 0x64, 0x6c, 0x65, 0x0];
