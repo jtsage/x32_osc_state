@@ -140,7 +140,7 @@ impl Buffer {
     /// - empty buffer
     /// - buffer length is 0
     /// - buffer is not a 4-byte multiple
-    pub fn get_string(&mut self) -> Result<Vec<u8>, enums::Error> {
+    pub fn next_string(&mut self) -> Result<Vec<u8>, enums::Error> {
         if self.is_empty() {
             Err(enums::Error::Packet(enums::PacketError::Underrun))
         } else if !self.is_valid() {
@@ -164,7 +164,7 @@ impl Buffer {
     /// - empty buffer
     /// - buffer length is 0
     /// - buffer is not a 4-byte multiple
-    pub fn get_bytes(&mut self, length: usize) -> Result<Vec<u8>, enums::Error> {
+    pub fn next_bytes(&mut self, length: usize) -> Result<Vec<u8>, enums::Error> {
         if length == 0 {
             Ok(vec![])
         } else if self.is_empty() {
@@ -187,14 +187,14 @@ impl Buffer {
     /// - empty buffer
     /// - buffer length is less than 4 (4 = zero length buffer, maybe valid?)
     /// - buffer is not a 4-byte multiple
-    pub fn get_next_byte_block(&mut self) -> Result<Vec<u8>, enums::Error> {
+    pub fn next_block_with_size(&mut self) -> Result<Vec<u8>, enums::Error> {
         if self.len() < 4 {
             Err(enums::Error::Packet(enums::PacketError::Underrun))
         } else if !self.is_valid() {
             Err(enums::Error::Packet(enums::PacketError::NotFourByte))
         } else {
-            let len_act_buff = self.data.clone()[0..4].try_into().map_err(|_| enums::Error::Packet(enums::PacketError::Underrun))?;
-
+            let len_act_buff = [self.data[0], self.data[1], self.data[2], self.data[3]];
+            
             #[expect(clippy::cast_sign_loss)]
             let len_act = i32::from_be_bytes(len_act_buff) as usize;
             let len_tot = if len_act % 4 == 0 { len_act } else { len_act + (4 - (len_act % 4)) };
@@ -217,13 +217,13 @@ impl Buffer {
     /// - empty buffer
     /// - buffer length is less than 4 (4 = zero length buffer, maybe valid?)
     /// - buffer is not a 4-byte multiple
-    pub fn get_next_block(&mut self) -> Result<Self, enums::Error> {
+    pub fn next_block(&mut self) -> Result<Self, enums::Error> {
         if self.len() < 4 {
             Err(enums::Error::Packet(enums::PacketError::Underrun))
         } else if !self.is_valid() {
             Err(enums::Error::Packet(enums::PacketError::NotFourByte))
         } else {
-            let len_act_buff = self.data.clone()[0..4].try_into().map_err(|_| enums::Error::Packet(enums::PacketError::Underrun))?;
+            let len_act_buff = [self.data[0], self.data[1], self.data[2], self.data[3]];
 
             #[expect(clippy::cast_sign_loss)]
             let chunk_tot = (i32::from_be_bytes(len_act_buff) as usize) + 4;

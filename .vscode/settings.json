@@ -4,6 +4,8 @@
 		"ABCMM",
 		"chrono",
 		"clippy",
+		"ihcfd",
+		"INTF",
 		"nanos",
 		"prefs",
 		"prepos",
@@ -16,5 +18,12 @@
 	],
 	"outline.showArrays": false,
 	"outline.showStrings": false,
-	"outline.showVariables": false
+	"outline.showVariables": false,
+	"workbench.editor.customLabels.enabled": true,
+	"workbench.editor.customLabels.patterns": {
+		"*/src/enums/mod.rs": "ENUMS",
+		"*/src/osc/mod.rs": "OSC",
+		"*/src/x32/mod.rs": "X32",
+		"*/src/lib.rs": "MAIN"
+	}
 }

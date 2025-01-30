@@ -62,10 +62,10 @@ impl From<ConsoleRequest> for Vec<Buffer> {
                 Message::new("/showdata").try_into().unwrap_or_default()
             ],
             ConsoleRequest::ShowMode() => vec![
-                Message::new_string("/node", "-prefs/show_control").try_into().unwrap_or_default()
+                Message::new_with_string("/node", "-prefs/show_control").try_into().unwrap_or_default()
             ],
             ConsoleRequest::CurrentCue() => vec![
-                Message::new_string("/node", "-show/prepos/current").try_into().unwrap_or_default()
+                Message::new_with_string("/node", "-show/prepos/current").try_into().unwrap_or_default()
             ],
             ConsoleRequest::KeepAlive() => vec![
                 Message::new("/xremote").try_into().unwrap_or_default()

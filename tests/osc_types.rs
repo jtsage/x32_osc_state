@@ -15,7 +15,7 @@ macro_rules! simple_type_test {
             let osc_type:Type = input.clone().into();
             
             assert!(!osc_type.is_error(), "into type");
-            assert_eq!(osc_type.get_type_char(), Ok(type_char), "char match");
+            assert_eq!(osc_type.as_type_char(), Ok(type_char), "char match");
 
             let orig_value:Result<$ty, _> = osc_type.clone().try_into();
 
@@ -67,22 +67,22 @@ fn buffer_size() {
     let error_type_bad_number = Err(Error::Packet(PacketError::Underrun));
     let error_type_bad_buffer = Err(Error::Packet(PacketError::NotFourByte));
 
-    assert_eq!(Type::try_from_type(&ar_1, 'f'), error_type_bad_buffer);
-    assert_eq!(Type::try_from_type(&ar_2, 'f'), error_type_bad_buffer);
-    assert_eq!(Type::try_from_type(&ar_3, 'f'), error_type_bad_buffer);
-    assert_eq!(Type::try_from_type(&ar_6, 'f'), error_type_bad_buffer);
+    assert_eq!(Type::try_from_vec(&ar_1, 'f'), error_type_bad_buffer);
+    assert_eq!(Type::try_from_vec(&ar_2, 'f'), error_type_bad_buffer);
+    assert_eq!(Type::try_from_vec(&ar_3, 'f'), error_type_bad_buffer);
+    assert_eq!(Type::try_from_vec(&ar_6, 'f'), error_type_bad_buffer);
 
-    assert!(matches!(Type::try_from_type(&ar_4, 'f'), Ok(Type::Float(_))));
-    assert_eq!(Type::try_from_type(&ar_8, 'f'), error_type_bad_number);
+    assert!(matches!(Type::try_from_vec(&ar_4, 'f'), Ok(Type::Float(_))));
+    assert_eq!(Type::try_from_vec(&ar_8, 'f'), error_type_bad_number);
 
-    assert_eq!(Type::try_from_type(&ar_4, 'd'), error_type_bad_number);
-    assert!(matches!(Type::try_from_type(&ar_8, 'd'), Ok(Type::Double(_))));
+    assert_eq!(Type::try_from_vec(&ar_4, 'd'), error_type_bad_number);
+    assert!(matches!(Type::try_from_vec(&ar_8, 'd'), Ok(Type::Double(_))));
 
-    assert_eq!(Type::try_from_type(&ar_8, 'r'), error_type_bad_number);
-    assert_eq!(Type::try_from_type(&ar_8, 'c'), error_type_bad_number);
+    assert_eq!(Type::try_from_vec(&ar_8, 'r'), error_type_bad_number);
+    assert_eq!(Type::try_from_vec(&ar_8, 'c'), error_type_bad_number);
 
-    assert_eq!(Type::decode_buffer( Err(Error::Packet(PacketError::Underrun)), 'f'),  Err(Error::Packet(PacketError::Underrun)));
-    assert!(matches!(Type::decode_buffer(Ok(ar_4.clone()), 'f'), Ok(Type::Float(_))));
+    assert_eq!(Type::try_from_buffer( Err(Error::Packet(PacketError::Underrun)), 'f'),  Err(Error::Packet(PacketError::Underrun)));
+    assert!(matches!(Type::try_from_buffer(Ok(ar_4.clone()), 'f'), Ok(Type::Float(_))));
 }
 
 
@@ -99,7 +99,7 @@ fn invalid_type_conversion_to_osc_type() {
 #[test]
 fn decode_unknown_type() {
     let buffer = rnd_buffer(4);
-    let osc_type = Type::try_from_type(&buffer, 'x');
+    let osc_type = Type::try_from_vec(&buffer, 'x');
 
     assert_eq!(osc_type, Err(Error::OSC(OSCError::InvalidTypeFlag)));
 }
@@ -108,7 +108,7 @@ fn decode_unknown_type() {
 fn encode_unknown_type() {
     let osc_type = Type::Unknown();
 
-    assert_eq!(osc_type.get_type_char().unwrap_err(), Error::OSC(OSCError::UnknownType));
+    assert_eq!(osc_type.as_type_char().unwrap_err(), Error::OSC(OSCError::UnknownType));
 }
 
 #[test]
@@ -136,7 +136,7 @@ fn type_string_invalid() {
     let osc_buffer = Buffer::from(raw_buffer.clone());
 
     let osc_type = Type::try_from((osc_buffer.as_slice(), osc_type_flag));
-    let osc_type_opt = Type::decode_buffer(Ok(raw_buffer), osc_type_flag);
+    let osc_type_opt = Type::try_from_buffer(Ok(raw_buffer), osc_type_flag);
 
     assert!(osc_type_opt.is_err());
     assert_eq!(osc_type, Err(Error::OSC(OSCError::ConvertFromString)));
@@ -187,14 +187,14 @@ fn type_time() {
 
     assert!(!osc_type.is_error());
     assert_eq!(<Type as Into<Buffer>>::into(osc_type.clone()), osc_buffer);
-    assert_eq!(osc_type.get_type_char(), Ok('t'));
+    assert_eq!(osc_type.as_type_char(), Ok('t'));
 
     let osc_value:SystemTime = osc_type.clone().try_into().expect("conversion error");
 
     assert_eq!(osc_value, time_system);
     assert_eq!(osc_type.to_string(), format!("|t:[3165615030, 536870912]|"));
 
-    assert_eq!(Type::try_from_type(&osc_buffer.as_vec(), 't'), Ok(osc_type));
+    assert_eq!(Type::try_from_vec(&osc_buffer.as_vec(), 't'), Ok(osc_type));
 }
 
 #[test]
@@ -214,13 +214,13 @@ fn blob_type_good_six() {
 
     let osc_type = Type::Blob(blob_buffer);
 
-    assert_eq!(osc_type.get_type_char(), Ok('b'));
+    assert_eq!(osc_type.as_type_char(), Ok('b'));
 
     let packed_buffer:Buffer = osc_type.clone().into();
 
     assert_eq!(packed_buffer.as_vec(), expect_buffer);
 
-    let re_pack = Type::try_from_type(&expect_buffer, 'b');
+    let re_pack = Type::try_from_vec(&expect_buffer, 'b');
 
     assert_eq!(osc_type.to_string(), "|b:[~b:6~]|");
     assert_eq!(osc_type, re_pack.unwrap());
@@ -237,7 +237,7 @@ fn blob_type_good_eight() {
 
     assert_eq!(packed_buffer.as_vec(), expect_buffer);
 
-    let re_pack = Type::try_from_type(&expect_buffer, 'b');
+    let re_pack = Type::try_from_vec(&expect_buffer, 'b');
 
     assert_eq!(osc_type, re_pack.unwrap());
 }
@@ -246,7 +246,7 @@ fn blob_type_good_eight() {
 fn blob_type_short_twelve() {
     let expect_buffer:Vec<u8> = vec![0x0, 0x0, 0x0, 0x12, 0x0, 0x0, 0xde, 0x01, 0x64, 0x64, 0x2, 0x2];
 
-    let re_pack = Type::try_from_type(&expect_buffer, 'b');
+    let re_pack = Type::try_from_vec(&expect_buffer, 'b');
 
     assert!(re_pack.is_err());
     assert_eq!(re_pack, Err(Error::Packet(PacketError::Underrun)))
@@ -257,7 +257,7 @@ fn blob_type_short_twelve() {
 fn blob_type_empty() {
     let expect_buffer:Vec<u8> = vec![];
 
-    let re_pack = Type::try_from_type(&expect_buffer, 'b');
+    let re_pack = Type::try_from_vec(&expect_buffer, 'b');
 
     assert!(re_pack.is_err());
     assert_eq!(re_pack, Err(Error::Packet(PacketError::Underrun)));

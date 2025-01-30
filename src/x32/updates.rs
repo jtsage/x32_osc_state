@@ -1,4 +1,4 @@
-use super::super::enums::{Error, FaderIndex, Fader, FaderColor};
+use super::super::enums::{Error, FaderIndex, Fader, FaderColor, FaderIndexParse};
 
 
 /// CUE record
@@ -59,85 +59,69 @@ impl Default for FaderUpdate {
     } }
 }
 
-/// mix message from node s~... osc message
-type NodeMixMessage = (String, String, String, String);
-/// fader level from /fader/... message
-type StdFaderMessage = (String, String, f32);
-/// mute from /fader/... message
-type StdMuteMessage = (String, String, i32);
-/// name from /fader/ or node s~ message
-type NameMessage = (String, String, String);
-/// config from /fader/ or node s~ message
-type ConfigMessage = (String, String, String, String, String);
 
-impl TryFrom<StdMuteMessage> for FaderUpdate {
-    type Error = Error;
+/// Fader bank name
+pub struct FaderName(pub String);
+/// Fader index (1-based)
+pub struct FaderIdx(pub String);
 
-    fn try_from(v: StdMuteMessage) -> Result<Self, Self::Error> {
-        let source = FaderIndex::try_from((v.0, v.1))?;
-
-        Ok(Self {
-            source,
-            is_on : Some(v.2 == 1),
-            ..Default::default()
-        })
-    }
+/// Fader update parsing
+/// - first element is always the fader bank
+/// - second element is always the index (1-based)
+pub enum FaderUpdateParse {
+    /// node Mix message - [ON/OFF], level (str)
+    NodeMix(FaderName, FaderIdx, String, String),
+    /// node config - name, color (str)
+    NodeConfig(FaderName, FaderIdx, String, String),
+    /// /fader - level
+    StdFader(FaderName, FaderIdx, f32),
+    /// /fader/on - i32
+    StdMute(FaderName, FaderIdx, i32),
+    /// /fader/name - name
+    StdName(FaderName, FaderIdx, String),
+    /// /fader/config/color - color (i32)
+    StdColor(FaderName, FaderIdx, i32),
 }
 
-impl TryFrom<StdFaderMessage> for FaderUpdate {
+impl TryFrom<FaderUpdateParse> for FaderUpdate {
     type Error = Error;
 
-    fn try_from(v: StdFaderMessage) -> Result<Self, Self::Error> {
-        let source = FaderIndex::try_from((v.0, v.1))?;
-        
-        Ok(Self {
-            source,
-            level : Some(v.2),
-            ..Default::default()
-        })
-    }
-}
+    fn try_from(value: FaderUpdateParse) -> Result<Self, Self::Error> {
+        let source = match &value {
+            FaderUpdateParse::NodeMix(b, i, _, _) |
+            FaderUpdateParse::NodeConfig(b, i, _, _) |
+            FaderUpdateParse::StdFader(b, i, _) |
+            FaderUpdateParse::StdMute(b, i, _) |
+            FaderUpdateParse::StdName(b, i, _) |
+            FaderUpdateParse::StdColor(b, i, _) =>
+                FaderIndex::try_from(FaderIndexParse::String(b.0.clone(), i.0.clone()))?,
+        };
 
-impl TryFrom<NodeMixMessage> for FaderUpdate {
-    type Error = Error;
+        let is_on = match &value {
+            FaderUpdateParse::NodeMix(_, _, t, _) => Some(Fader::is_on_from_string(t)),
+            FaderUpdateParse::StdMute(_, _, i) => Some(*i == 1),
+            _ => None
+        };
 
-    fn try_from(v: NodeMixMessage) -> Result<Self, Self::Error> {
-        let source = FaderIndex::try_from((v.0, v.1))?;
+        let level = match &value {
+            FaderUpdateParse::NodeMix(_, _, _, t) => Some(Fader::level_from_string(t)),
+            FaderUpdateParse::StdFader(_, _, f) => Some(*f),
+            _ => None
+        };
 
-        Ok(Self {
-            source,
-            level : Some(Fader::level_from_string(&v.3)),
-            is_on : Some(Fader::is_on_from_string(&v.2)),
-            ..Default::default()
-        })
-    }
-}
+        let label = match &value {
+            FaderUpdateParse::NodeConfig(_, _, t, _) |
+            FaderUpdateParse::StdName(_, _, t) => Some(t.clone()),
+            _ => None
+        };
 
-impl TryFrom<NameMessage> for FaderUpdate {
-    type Error = Error;
+        let color = match &value {
+            FaderUpdateParse::NodeConfig(_, _, _, t) => Some(FaderColor::parse_str(t)),
+            FaderUpdateParse::StdColor(_, _, i) => Some(FaderColor::parse_int(*i)),
+            _ => None
+        };
 
-    fn try_from(v: NameMessage) -> Result<Self, Self::Error> {
-        let source = FaderIndex::try_from((v.0, v.1))?;
 
-        Ok(Self {
-            source,
-            label : Some(v.2.clone()),
-            ..Default::default()
-        })
-    }
-}
-
-impl TryFrom<ConfigMessage> for FaderUpdate {
-    type Error = Error;
-
-    fn try_from(v: ConfigMessage) -> Result<Self, Self::Error> {
-        let source = FaderIndex::try_from((v.0, v.1))?;
-
-        Ok(Self {
-            source,
-            color : Some(FaderColor::parse_str(&v.4)),
-            label : Some(v.2.clone()),
-            ..Default::default()
-        })
+        Ok(Self { source, label, level, is_on, color })
     }
 }

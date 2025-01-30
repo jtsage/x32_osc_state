@@ -61,7 +61,9 @@ impl Bundle {
 
     /// Make a new bundle with pre-built messages
     #[must_use]
-    pub fn new_with_messages(messages: Vec<Packet>) -> Self {
+    pub fn new_with_messages<T: Into<Packet>>(msgs: Vec<T>) -> Self {
+        let mut messages:Vec<Packet> = vec![];
+        for v in msgs { messages.push(v.into()); }
         Self {
             time : TimeTag::now(),
             messages
@@ -71,7 +73,7 @@ impl Bundle {
     /// Make a new future bundle (add "ms" to now)
     #[must_use]
     #[inline]
-    pub fn future(ms : u64) -> Self {
+    pub fn new_with_future(ms : u64) -> Self {
         Self {
             time : TimeTag::future(ms),
             messages : vec![]
@@ -103,7 +105,7 @@ impl Message {
 
     /// Create a new message with a single string argument
     #[must_use]
-    pub fn new_string(address: &str, data: &str) -> Self {
+    pub fn new_with_string(address: &str, data: &str) -> Self {
         Self {
             address : address.to_owned(),
             args : vec![Type::String(data.to_owned())],
@@ -114,10 +116,10 @@ impl Message {
     /// Get the first argument, with a sane default
     /// Note that type is determined by the type of the default
     pub fn first_default<T>(&self, default: T) -> T  where 
-        Type: std::convert::TryInto<T>
+        T: TryFrom<Type>
     {
         if let Some(a) = self.args.first() {
-            a.clone().try_into().unwrap_or(default)
+            a.clone().default_value(default)
         } else {
             default
         }
@@ -146,19 +148,10 @@ impl Message {
         let list:Vec<char> = self.args
             .clone()
             .into_iter()
-            .filter_map(|x| x.get_type_char().ok())
+            .filter_map(|x| x.as_type_char().ok())
             .collect();
         
         list.into()
-    }
-
-    /// Pack the arguments into an `OSCBuffer`
-    fn pack_args(&self) -> Buffer {
-        if self.args.is_empty() {
-            Buffer::default()
-        } else {
-            self.args.clone().into_iter().collect()
-        }
     }
 }
 
@@ -182,7 +175,7 @@ impl TryFrom<Message> for Buffer {
     type Error = enums::Error;
 
     fn try_from(value: Message) -> Result<Self, Self::Error> {
-        if !value.is_valid() { return Err(enums::Error::Packet(enums::PacketError::Invalid)); }
+        if !value.is_valid() { return Err(enums::Error::Packet(enums::PacketError::InvalidMessage)); }
 
         let mut osc_buffer = <Type as Into<Self>>::into(Type::String(value.address.clone()));//.into();
 
@@ -191,7 +184,7 @@ impl TryFrom<Message> for Buffer {
         } else {
             osc_buffer.extend(&<Type as Into<Self>>::into(value.type_list()));
         }
-        osc_buffer.extend(&value.pack_args());
+        osc_buffer.extend(&value.args.clone().into_iter().collect());
 
         Ok(osc_buffer)
     }
@@ -204,28 +197,28 @@ impl TryFrom<Buffer> for Message {
     fn try_from(mut data: Buffer) -> Result<Self, Self::Error> {
         if !data.is_valid() {
             Err(enums::Error::Packet(enums::PacketError::NotFourByte))
-        } else if let Ok(Type::String(osc_address)) = Type::decode_buffer(data.get_string(), 's') {
+        } else if let Ok(Type::String(osc_address)) = Type::try_from_buffer(data.next_string(), 's') {
             let mut force_empty_args = false;
             let mut osc_payload:Vec<Type> = vec![];
 
-            if let Ok(Type::TypeList(osc_types)) = Type::decode_buffer(data.get_string(), ',') {
+            if let Ok(Type::TypeList(osc_types)) = Type::try_from_buffer(data.next_string(), ',') {
                 if osc_types.is_empty() { force_empty_args = true }
 
                 let type_input_length= osc_types.len();
 
                 osc_payload = osc_types.into_iter().filter_map(|type_flag| match type_flag {
-                    'i' | 'f' | 'c' | 'r' => Type::decode_buffer(data.get_bytes(4), type_flag),
-                    'h' | 'd' | 't' => Type::decode_buffer(data.get_bytes(8), type_flag),
+                    'i' | 'f' | 'c' | 'r' => Type::try_from_buffer(data.next_bytes(4), type_flag),
+                    'h' | 'd' | 't' => Type::try_from_buffer(data.next_bytes(8), type_flag),
                     'T' | 'F' => Ok(Type::Boolean(type_flag == 'T')),
                     'N' => Ok(Type::Null()),
                     'I' => Ok(Type::Bang()),
-                    's' => Type::decode_buffer(data.get_string(), 's'),
-                    'b' => Type::decode_buffer(data.get_next_byte_block(), 'b'),
+                    's' => Type::try_from_buffer(data.next_string(), 's'),
+                    'b' => Type::try_from_buffer(data.next_block_with_size(), 'b'),
                     _ => Err(enums::Error::OSC(enums::OSCError::UnknownType))
                 }.ok()).collect();
 
                 if osc_payload.len() != type_input_length {
-                    return Err(enums::Error::Packet(enums::PacketError::Invalid))
+                    return Err(enums::Error::Packet(enums::PacketError::InvalidTypesForMessage))
                 }
             }
 
@@ -235,7 +228,7 @@ impl TryFrom<Buffer> for Message {
                 force_empty_args
             })
         } else {
-            Err(enums::Error::Packet(enums::PacketError::Invalid))
+            Err(enums::Error::Packet(enums::PacketError::InvalidMessage))
         }
     }
 }
@@ -265,8 +258,7 @@ impl TryFrom<Bundle> for Buffer {
 // MARK: Bundle->String
 impl fmt::Display for Bundle {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "|#bundle•|")?;
-        write!(f, "{}", Type::TimeTag(self.time))?;
+        write!(f, "|#bundle•|{}", Type::TimeTag(self.time))?;
 
         for item in self.messages.clone() {
             write!(f, "M[{item}]")?;
@@ -282,27 +274,27 @@ impl TryFrom<Buffer> for Bundle {
     fn try_from(mut data: Buffer) -> Result<Self, Self::Error> {
         if !data.is_valid() {
             Err(enums::Error::Packet(enums::PacketError::NotFourByte))
-        } else if Ok(enums::BUNDLE_TAG.to_vec()) == data.get_string() {
-            let time_tag = Type::decode_buffer(data.get_bytes(8), 't')?;
+        } else if Ok(enums::BUNDLE_TAG.to_vec()) == data.next_string() {
+            let time_tag = Type::try_from_buffer(data.next_bytes(8), 't')?;
             let time = time_tag.try_into()?;
 
             let mut messages:Vec<Packet> = vec![];
 
             while ! data.is_empty() {
-                match data.get_next_block() {
+                match data.next_block() {
                     Ok(buffer) => {
                         match buffer.try_into() {
                             Ok(msg) => messages.push(msg),
-                            Err(_) => { return Err(enums::Error::Packet(enums::PacketError::Invalid)); }
+                            Err(_) => { return Err(enums::Error::Packet(enums::PacketError::InvalidBuffer)); }
                         }
                     },
-                    Err(_) => { return Err(enums::Error::Packet(enums::PacketError::Invalid)); }
+                    Err(_) => { return Err(enums::Error::Packet(enums::PacketError::InvalidBuffer)); }
                 }
             }
 
             Ok(Self { time, messages })
         } else {
-            Err(enums::Error::Packet(enums::PacketError::Invalid))
+            Err(enums::Error::Packet(enums::PacketError::InvalidBuffer))
         }
     }
 }

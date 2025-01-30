@@ -1,6 +1,7 @@
 use std::fmt;
 use std::sync::LazyLock;
 use regex::Regex;
+use super::osc;
 
 /// Pull fader level from node string
 static LVL_STRING: LazyLock<Regex> = LazyLock::new(|| {
@@ -19,6 +20,7 @@ pub const X32_KEEP_ALIVE:[u8;24] = [0x2f, 0x6e, 0x6f, 0x64, 0x65, 0x0, 0x0, 0x0,
 /// X32 remote command "/xremote", 12-byte
 pub const X32_XREMOTE:[u8;12] = [0x2f, 0x78, 0x72, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x0, 0x0, 0x0, 0x0];
 
+// MARK: Error
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 /// Error type for crate
 pub enum Error {
@@ -30,6 +32,27 @@ pub enum Error {
     X32(X32Error)
 }
 
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::Packet(v) => write!(f, "buffer error: {v}"),
+            Self::OSC(v) => write!(f, "osc error: {v}"),
+            Self::X32(v) => write!(f, "x32 error: {v}"),
+        }
+    }
+}
+
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Packet(v) => Some(v),
+            Self::OSC(v) => Some(v),
+            Self::X32(v) => Some(v),
+        }
+    }
+}
+
+// MARK: PacketError
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 /// Packet (buffer) Errors
 pub enum PacketError {
@@ -40,9 +63,30 @@ pub enum PacketError {
     /// buffer not large enough for operation
     Underrun,
     /// Invalid original message
-    Invalid
+    InvalidBuffer,
+    /// Invalid original message
+    InvalidMessage,
+    /// Type conversion failed
+    InvalidTypesForMessage,
+    
 }
 
+impl fmt::Display for PacketError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", match self {
+            Self::NotFourByte => "not 4-byte aligned",
+            Self::UnterminatedString => "string not terminated with 0x0 null",
+            Self::Underrun => "buffer not large enough for operation",
+            Self::InvalidBuffer => "buffer contains invalid data",
+            Self::InvalidMessage => "message conversion invalid",
+            Self::InvalidTypesForMessage => "type conversion invalid",
+        })
+    }
+}
+
+impl std::error::Error for PacketError { }
+
+// MARK: OSCError
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 /// OSC Type conversion errors
 pub enum OSCError {
@@ -62,6 +106,23 @@ pub enum OSCError {
     InvalidTimeOverflow,
 }
 
+impl fmt::Display for OSCError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", match self {
+            Self::ConvertFromString => "string conversion failed",
+            Self::AddressContent => "address is not ascii",
+            Self::UnknownType => "unknown OSC type",
+            Self::InvalidTypeFlag => "unknown OSC type flag",
+            Self::InvalidTypeConversion => "type conversion invalid",
+            Self::InvalidTimeUnderflow => "time too early to represent",
+            Self::InvalidTimeOverflow => "time too late to represent",
+        })
+    }
+}
+
+impl std::error::Error for OSCError { }
+
+// MARK: X32Error
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 /// X32 state errors
 pub enum X32Error {
@@ -73,13 +134,20 @@ pub enum X32Error {
     MalformedPacket
 }
 
-// MARK: BufferError->String
-impl fmt::Display for Error {
+impl fmt::Display for X32Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{self:?}")
+        write!(f, "{}", match self {
+            Self::InvalidFader => "invalid fader",
+            Self::UnimplementedPacket => "unhandled message",
+            Self::MalformedPacket => "packet format invalid - not enough arguments",
+        })
     }
 }
 
+impl std::error::Error for X32Error { }
+
+
+// MARK: ShowMode
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 /// Show Control Mode
 pub enum ShowMode {
@@ -199,65 +267,66 @@ impl FaderIndex {
     /// Get a vector of OSC messages that will force
     /// the X32 to update this fader
     #[must_use]
-    pub fn get_x32_update(&self) -> Vec<super::osc::Buffer> {
+    pub fn get_x32_update(&self) -> Vec<osc::Buffer> {
         let address = self.get_x32_address();
         match self {
-            Self::Unknown => vec![super::osc::Buffer::default()],
+            Self::Unknown => vec![osc::Buffer::default()],
             Self::Dca(_) => vec![
-                super::osc::Message::new_string("/node", &address).try_into().unwrap_or_default(),
-                super::osc::Message::new_string("/node", &format!("{address}/config")).try_into().unwrap_or_default(),
+                osc::Buffer::try_from(osc::Message::new_with_string("/node", &address)).unwrap_or_default(),
+                osc::Buffer::try_from(osc::Message::new_with_string("/node", &format!("{address}/config"))).unwrap_or_default(),
             ],
             _ => vec![
-                super::osc::Message::new_string("/node", &format!("{address}/mix")).try_into().unwrap_or_default(),
-                super::osc::Message::new_string("/node", &format!("{address}/config")).try_into().unwrap_or_default(),
+                osc::Buffer::try_from(osc::Message::new_with_string("/node", &format!("{address}/mix"))).unwrap_or_default(),
+                osc::Buffer::try_from(osc::Message::new_with_string("/node", &format!("{address}/config"))).unwrap_or_default(),
             ],
         }
     }
 }
 
-/// Fader index - string type, integer index (1-based)
-type FaderIndexStrInt = (String, i32);
-/// Fader index - string type, string index (1-based)
-type FaderIndexStrStr = (String, String);
+// MARK: FaderIndexParse
+/// Fader Index parsers
+pub enum FaderIndexParse {
+    /// String name, integer index (1-based)
+    Integer(String, i32),
+    /// String name, string index (1-based)
+    String(String, String),
+}
 
-impl TryFrom<FaderIndexStrInt> for FaderIndex {
+impl TryFrom<FaderIndexParse> for FaderIndex {
     type Error = Error;
 
-    fn try_from(value: FaderIndexStrInt) -> Result<Self, Self::Error> {
-        if let Ok(index) = usize::try_from(value.1) {
-            match value.0.as_str() {
-                _ if index == 0 => Err(Error::X32(X32Error::InvalidFader)),
-                "mtx" if index <= 6 => Ok(Self::Matrix(index)),
-                "auxin" if index <= 8 => Ok(Self::Aux(index)),
-                "dca" if index <= 8 => Ok(Self::Dca(index)),
-                "main" if index <= 2 => Ok(Self::Main(index)),
-                "ch" if index <= 32 => Ok(Self::Channel(index)),
-                "bus" if index <= 16 => Ok(Self::Bus(index)),
-                _ => Err(Error::X32(X32Error::InvalidFader))
-            }
-        } else {
-            Err(Error::X32(X32Error::InvalidFader))
+    fn try_from(value: FaderIndexParse) -> Result<Self, Self::Error> {
+        let invalid_fader = Error::X32(X32Error::InvalidFader);
+
+        let index = match &value {
+            FaderIndexParse::Integer(_, d) => usize::try_from(*d).map_err(|_| invalid_fader)?,
+            FaderIndexParse::String(s, d) => {
+                if s.as_str() == "main" {
+                    if d.as_str() == "m" { 2 } else { 1 }
+                } else {
+                    d.parse::<usize>().map_err(|_| invalid_fader)?
+                }
+            },
+        };
+
+        match value {
+            FaderIndexParse::Integer(s, _) |
+            FaderIndexParse::String(s, _) => {
+                match s.as_str() {
+                    _ if index == 0 => Err(invalid_fader),
+                    "mtx" if index <= 6 => Ok(Self::Matrix(index)),
+                    "auxin" if index <= 8 => Ok(Self::Aux(index)),
+                    "dca" if index <= 8 => Ok(Self::Dca(index)),
+                    "main" if index <= 2 => Ok(Self::Main(index)),
+                    "ch" if index <= 32 => Ok(Self::Channel(index)),
+                    "bus" if index <= 16 => Ok(Self::Bus(index)),
+                    _ => Err(invalid_fader)
+                }
+            },
         }
     }
 }
 
-impl TryFrom<FaderIndexStrStr> for FaderIndex {
-    type Error = Error;
-
-    fn try_from(value: FaderIndexStrStr) -> Result<Self, Self::Error> {
-        if value.0 == "main" {
-            if value.1 == "m" {
-                (value.0, 2).try_into()
-            } else {
-                (value.0, 1).try_into()
-            }
-        } else if let Ok(num) = value.1.parse::<i32>() {
-            (value.0, num).try_into()
-        } else {
-            Err(Error::X32(X32Error::InvalidFader))
-        }
-    }
-}
 
 /// Fader color
 #[expect(missing_docs)]
@@ -386,7 +455,7 @@ impl Fader {
     /// Get the vor update message for this fader
     #[must_use]
     pub fn vor_message(&self) -> super::osc::Packet {
-        super::osc::Packet::Message(super::osc::Message::new_string(
+        super::osc::Packet::Message(super::osc::Message::new_with_string(
             &self.source.get_vor_address(),
             &format!("[{:02}] {:>3} {:>8} {}",
                 self.source.get_index(),

@@ -181,7 +181,7 @@ fn decode_unknown_type() {
     let osc_packet:Result<Message, _> = buffer.try_into();
 
     assert!(osc_packet.is_err());
-    assert_eq!(osc_packet, Err(Error::Packet(PacketError::Invalid)));
+    assert_eq!(osc_packet, Err(Error::Packet(PacketError::InvalidTypesForMessage)));
 }
 
 #[test]
@@ -203,7 +203,7 @@ fn empty_buffer() {
     let decode:Result<Message, _> = buffer.try_into();
 
     assert!(decode.is_err());
-    assert_eq!(decode, Err(Error::Packet(PacketError::Invalid)));
+    assert_eq!(decode, Err(Error::Packet(PacketError::InvalidMessage)));
 }
 
 #[test]
@@ -217,7 +217,7 @@ fn invalid_message_bad_arg() {
     let buffer:Result<Buffer, _> = message.try_into();
 
     assert!(buffer.is_err());
-    assert_eq!(buffer, Err(Error::Packet(PacketError::Invalid)));
+    assert_eq!(buffer, Err(Error::Packet(PacketError::InvalidMessage)));
 }
 
 #[test]
@@ -229,7 +229,7 @@ fn invalid_message_bad_address() {
     let buffer:Result<Buffer, _> = message.try_into();
 
     assert!(buffer.is_err());
-    assert_eq!(buffer, Err(Error::Packet(PacketError::Invalid)));
+    assert_eq!(buffer, Err(Error::Packet(PacketError::InvalidMessage)));
 }
 
 
@@ -297,5 +297,5 @@ fn decode_blob_buffer_underrun() {
     let re_pack:Result<Message, _> = expected_buffer.clone().try_into();
 
     assert!(re_pack.is_err());
-    assert_eq!(re_pack, Err(Error::Packet(PacketError::Invalid)));
+    assert_eq!(re_pack, Err(Error::Packet(PacketError::InvalidTypesForMessage)));
 }

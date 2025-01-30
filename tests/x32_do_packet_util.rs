@@ -1,6 +1,6 @@
 use x32_osc_state::x32::ConsoleMessage;
 use x32_osc_state::osc::Buffer;
-use x32_osc_state::enums::{Fader, FaderColor, FaderIndex};
+use x32_osc_state::enums::{Fader, FaderColor, FaderIndex, FaderIndexParse};
 use x32_osc_state::enums::{Error, X32Error};
 
 #[test]
@@ -127,22 +127,22 @@ fn fader_index_stuff() {
     assert_eq!(FaderIndex::Unknown.get_index(), 0);
     assert_eq!(FaderIndex::Unknown.get_x32_update(), vec![Buffer::default()]);
 
-    let fake_fader = (String::from("boo"), String::from("01"));
+    let fake_fader = FaderIndexParse::String(String::from("boo"), String::from("01"));
     let fake_fader:Result<FaderIndex, _> = fake_fader.try_into();
 
     assert_eq!(fake_fader.unwrap_err(), Error::X32(X32Error::InvalidFader));
 
-    let fake_fader = (String::from("boo"), 1_i32);
+    let fake_fader = FaderIndexParse::Integer(String::from("boo"), 1_i32);
     let fake_fader:Result<FaderIndex, _> = fake_fader.try_into();
 
     assert_eq!(fake_fader.unwrap_err(), Error::X32(X32Error::InvalidFader));
 
-    let fake_fader = (String::from("boo"), String::from("x"));
+    let fake_fader = FaderIndexParse::String(String::from("boo"), String::from("x"));
     let fake_fader:Result<FaderIndex, _> = fake_fader.try_into();
 
     assert_eq!(fake_fader.unwrap_err(), Error::X32(X32Error::InvalidFader));
 
-    let fake_fader = (String::from("boo"), -1_i32);
+    let fake_fader = FaderIndexParse::Integer(String::from("boo"), -1_i32);
     let fake_fader:Result<FaderIndex, _> = fake_fader.try_into();
 
     assert_eq!(fake_fader.unwrap_err(), Error::X32(X32Error::InvalidFader));

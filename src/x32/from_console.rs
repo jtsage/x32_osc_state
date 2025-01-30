@@ -1,5 +1,5 @@
-use crate::x32::updates::{CueUpdate, SnippetUpdate, SceneUpdate, FaderUpdate};
-use crate::enums::{Error, X32Error, ShowMode, NODE_STRING, FaderColor, FaderIndex};
+use crate::x32::updates::{CueUpdate, SnippetUpdate, SceneUpdate, FaderUpdate, FaderUpdateParse, FaderName, FaderIdx};
+use crate::enums::{Error, X32Error, ShowMode, NODE_STRING};
 use crate::osc::{Buffer, Message};
 
 #[derive(Debug, PartialEq, PartialOrd)]
@@ -49,16 +49,15 @@ impl TryFrom<Message> for ConsoleMessage {
 impl ConsoleMessage {
     /// Split address on slashes, return as a tuple
     #[must_use]
-    pub fn split_address(s : &str) -> (String, String, String, String) {
-        let mut s = s.to_owned();
-        let s = if s.starts_with('/') { s.split_off(1)} else { s };
+    pub fn split_address(s : &str) -> (&str, &str, &str, &str) {
+        let s = s.strip_prefix('/').map_or(s, |s| s);
 
         let mut sp = s.split('/');
         (
-            sp.next().unwrap_or("").to_owned(),
-            sp.next().unwrap_or("").to_owned(),
-            sp.next().unwrap_or("").to_owned(),
-            sp.next().unwrap_or("").to_owned(),
+            sp.next().unwrap_or(""),
+            sp.next().unwrap_or(""),
+            sp.next().unwrap_or(""),
+            sp.next().unwrap_or(""),
         )
     }
 
@@ -86,49 +85,47 @@ impl ConsoleMessage {
     #[expect(clippy::single_call_fn)]
     fn try_from_standard_osc(msg : &Message) -> Result<Self, Error> {
         let parts = Self::split_address(&msg.address);
-        let parts = (parts.0.as_str(), parts.1.as_str(), parts.2.as_str(), parts.3.as_str());
+        // let parts = (parts.0.as_str(), parts.1.as_str(), parts.2.as_str(), parts.3.as_str());
 
         match parts {
             (_, _, "mix", "fader") | ("dca", _, "fader", "") => {
-                let fader_update:FaderUpdate = (
-                    parts.0.to_owned(),
-                    parts.1.to_owned(),
+                let fader_update = FaderUpdate::try_from(FaderUpdateParse::StdFader(
+                    FaderName(parts.0.to_owned()),
+                    FaderIdx(parts.1.to_owned()),
                     msg.first_default(0_f32)
-                ).try_into()?;
+                ))?;
                 
                 Ok(Self::Fader(fader_update))
             },
 
             (_, _, "mix", "on") | ("dca", _, "on", "") => {
-                let fader_update:FaderUpdate = (
-                    parts.0.to_owned(),
-                    parts.1.to_owned(),
+                let fader_update = FaderUpdate::try_from(FaderUpdateParse::StdMute(
+                    FaderName(parts.0.to_owned()),
+                    FaderIdx(parts.1.to_owned()),
                     msg.first_default(0_i32)
-                ).try_into()?;
+                ))?;
 
                 Ok(Self::Fader(fader_update))
             },
 
             (_, _, "config", "name") => {
-                let fader_update:FaderUpdate = (
-                    parts.0.to_owned(),
-                    parts.1.to_owned(),
+                let fader_update = FaderUpdate::try_from(FaderUpdateParse::StdName(
+                    FaderName(parts.0.to_owned()),
+                    FaderIdx(parts.1.to_owned()),
                     msg.first_default(String::new())
-                ).try_into()?;
+                ))?;
 
                 Ok(Self::Fader(fader_update))
             },
 
             (_, _, "config", "color") => {
-                let source = FaderIndex::try_from((parts.0.to_owned(), parts.1.to_owned()))?;
-                let color = msg.first_default(1_i32);
+                let fader_update = FaderUpdate::try_from(FaderUpdateParse::StdColor(
+                    FaderName(parts.0.to_owned()),
+                    FaderIdx(parts.1.to_owned()),
+                    msg.first_default(1_i32)
+                ))?;
 
-                println!("{color:?}  {msg:?}");
-                Ok(Self::Fader(FaderUpdate {
-                    source,
-                    color : Some(FaderColor::parse_int(color)),
-                    ..Default::default()
-                }))
+                Ok(Self::Fader(fader_update))
             },
 
             #[expect(clippy::cast_possible_truncation)]
@@ -152,28 +149,27 @@ impl ConsoleMessage {
         let arg_len = args.len();
 
         let parts = Self::split_address(&address);
-        let parts = (parts.0.as_str(), parts.1.as_str(), parts.2.as_str(), parts.3.as_str());
+        // let parts = (parts.0.as_str(), parts.1.as_str(), parts.2.as_str(), parts.3.as_str());
 
         match parts {
             (_, _, "mix", "") | ("dca", _, "", "") if arg_len >= 2 => {
-                let fader_update:FaderUpdate = (
-                    parts.0.to_owned(),
-                    parts.1.to_owned(),
+                let fader_update = FaderUpdate::try_from(FaderUpdateParse::NodeMix(
+                    FaderName(parts.0.to_owned()),
+                    FaderIdx(parts.1.to_owned()),
                     args[0].clone(),
                     args[1].clone()
-                ).try_into()?;
+                ))?;
                 
                 Ok(Self::Fader(fader_update))
             },
 
             (_, _, "config", "") if arg_len >= 1 => {
-                let fader_update:FaderUpdate = (
-                    parts.0.to_owned(),
-                    parts.1.to_owned(),
+                let fader_update = FaderUpdate::try_from(FaderUpdateParse::NodeConfig(
+                    FaderName(parts.0.to_owned()),
+                    FaderIdx(parts.1.to_owned()),
                     args[0].clone(),
-                    args[1].clone(),
-                    args[2].clone()
-                ).try_into()?;
+                    args[2].clone(),
+                ))?;
 
                 Ok(Self::Fader(fader_update))
             },

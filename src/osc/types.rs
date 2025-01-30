@@ -53,11 +53,11 @@ macro_rules! value_impl {
                 Type::$variant(v)
             }
         }
-        impl TryInto<$ty> for Type {
+        impl TryFrom<Type> for $ty {
             type Error = enums::Error;
 
-            fn try_into(self) -> Result<$ty, Self::Error> {
-                match self {
+            fn try_from(v : Type) -> Result<$ty, Self::Error> {
+                match v {
                     Type::$variant(v) => Ok(v),
                     _ => Err(enums::Error::OSC(enums::OSCError::InvalidTypeConversion))
                 }
@@ -80,11 +80,13 @@ value_impl! {
     (TimeTag, TimeTag)
 }
 
-// MARK: Types->Buffer
-#[expect(clippy::from_over_into)]
-impl Into<Buffer> for Type {
-    fn into(self) -> Buffer { Buffer::from(<Self as Into<Vec<u8>>>::into(self)) }
+// MARK: Type->Buffer
+impl From<Type> for Buffer {
+    fn from(value: Type) -> Self {
+        value.into_vec().into()
+    }
 }
+
 
 /// Pad a string buffer (`Vec<u8>`)
 fn padded_string_buffer(v: &String) -> Vec<u8> {
@@ -105,27 +107,26 @@ fn padded_string(v: &String) -> String {
 }
 
 // MARK: Types -> Vec<u8>
-#[expect(clippy::from_over_into)]
-impl Into<Vec<u8>> for Type {
-    fn into(self) -> Vec<u8> {
-        match self {
-            Self::Integer(v)     => v.to_be_bytes().to_vec(),
-            Self::LongInteger(v) => v.to_be_bytes().to_vec(),
-            Self::Float(v)       => v.to_be_bytes().to_vec(),
-            Self::Double(v)      => v.to_be_bytes().to_vec(),
+impl From<Type> for Vec<u8> {
+    fn from(v : Type) -> Self {
+        match v {
+            Type::Integer(v)     => v.to_be_bytes().to_vec(),
+            Type::LongInteger(v) => v.to_be_bytes().to_vec(),
+            Type::Float(v)       => v.to_be_bytes().to_vec(),
+            Type::Double(v)      => v.to_be_bytes().to_vec(),
 
-            Self::Color(v) => v.to_vec(),
-            Self::Char(v) => (v as u32).to_be_bytes().to_vec(),
-            Self::String(v) => padded_string_buffer(&v),
-            Self::TimeTag(v) => v.into(),
-            Self::TypeList(v) => {
+            Type::Color(v) => v.to_vec(),
+            Type::Char(v) => (v as u32).to_be_bytes().to_vec(),
+            Type::String(v) => padded_string_buffer(&v),
+            Type::TimeTag(v) => v.into(),
+            Type::TypeList(v) => {
                 if v.is_empty() {
                     vec![]
                 } else {
                     padded_string_buffer(&format!(",{}", v.into_iter().collect::<String>()))
                 }
             },
-            Self::Blob(v) => {
+            Type::Blob(v) => {
                 let mut buffer = vec![];
                 #[expect(clippy::cast_possible_truncation)]
                 #[expect(clippy::cast_possible_wrap)]
@@ -148,7 +149,7 @@ impl Into<Vec<u8>> for Type {
 // MARK: Types -> String
 impl fmt::Display for Type {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let type_flag= self.get_type_char().unwrap_or('*');
+        let type_flag= self.as_type_char().unwrap_or('*');
 
         let type_string:String = match &self {
             Self::Float(v) => v.to_string(),
@@ -183,9 +184,9 @@ impl fmt::Display for Type {
 impl TryFrom<(&[u8], char)> for Type {
     type Error = enums::Error;
     
-    fn try_from(value: (&[u8], char)) -> Result<Self, Self::Error> {
-        if value.0.len() % 4 != 0 { return Err(enums::Error::Packet(enums::PacketError::NotFourByte)) }
-        match (value.1, value.0.len()) {
+    fn try_from((arr, type_char): (&[u8], char)) -> Result<Self, Self::Error> {
+        if arr.len() % 4 != 0 { return Err(enums::Error::Packet(enums::PacketError::NotFourByte)) }
+        match (type_char, arr.len()) {
             ('T', 0) => Ok(true.into()),
             ('F', 0) => Ok(false.into()),
             ('N', 0) => Ok(Self::Null()),
@@ -193,65 +194,65 @@ impl TryFrom<(&[u8], char)> for Type {
             (',', 0) => Ok(Self::TypeList(vec![])),
 
             ('i', 4) => {
-                let v = &value.0[0..4].try_into().map_err(|_| enums::Error::Packet(enums::PacketError::Underrun))?;
-                Ok(i32::from_be_bytes(*v).into())
+                let v = [arr[0], arr[1], arr[2], arr[3]];
+                Ok(i32::from_be_bytes(v).into())
             },
 
             ('f', 4) => {
-                let v = &value.0[0..4].try_into().map_err(|_| enums::Error::Packet(enums::PacketError::Underrun))?;
-                Ok(f32::from_be_bytes(*v).into())
+                let v = [arr[0], arr[1], arr[2], arr[3]];
+                Ok(f32::from_be_bytes(v).into())
             },
 
             ('h', 8) => {
-                let v = &value.0[0..8].try_into().map_err(|_| enums::Error::Packet(enums::PacketError::Underrun))?;
-                Ok(i64::from_be_bytes(*v).into())
+                let v = [arr[0], arr[1], arr[2], arr[3], arr[4], arr[5], arr[6], arr[7]];
+                Ok(i64::from_be_bytes(v).into())
             },
 
             ('d', 8) => {
-                let v = &value.0[0..8].try_into().map_err(|_| enums::Error::Packet(enums::PacketError::Underrun))?;
-                Ok(f64::from_be_bytes(*v).into())
+                let v = [arr[0], arr[1], arr[2], arr[3], arr[4], arr[5], arr[6], arr[7]];
+                Ok(f64::from_be_bytes(v).into())
             },
 
             ('t', 8) => {
-                let s = &value.0[0..4].try_into().map_err(|_| enums::Error::Packet(enums::PacketError::Underrun))?;
-                let f = &value.0[4..8].try_into().map_err(|_| enums::Error::Packet(enums::PacketError::Underrun))?;
+                let s = &[arr[0], arr[1], arr[2], arr[3]];
+                let f = &[arr[4], arr[5], arr[6], arr[7]];
                 let time_tag:TimeTag = (s, f).into();
                 Ok(time_tag.into())
             }
             ('c', 4) => {
-                let v = &value.0[0..4].try_into().map_err(|_| enums::Error::Packet(enums::PacketError::Underrun))?;
-                char::from_u32(u32::from_be_bytes(*v)).map_or(Err(enums::Error::OSC(enums::OSCError::ConvertFromString)), |v| Ok(v.into()))
+                let v = [arr[0], arr[1], arr[2], arr[3]];
+                char::from_u32(u32::from_be_bytes(v)).map_or(Err(enums::Error::OSC(enums::OSCError::ConvertFromString)), |v| Ok(v.into()))
             }
 
             ('r', 4) => {
-                let v:[u8;4] = value.0[0..4].try_into().map_err(|_| enums::Error::Packet(enums::PacketError::Underrun))?;
+                let v:[u8;4] = [arr[0], arr[1], arr[2], arr[3]];
                 Ok(v.into())
             }
 
             ('i' | 'f' | 'h' | 'd' | 'c' | 'r' | 't', _) | (_, 0) => Err(enums::Error::Packet(enums::PacketError::Underrun)),
 
             ('s', _,) => {
-                let v = std::str::from_utf8(value.0).map_err(|_| enums::Error::OSC(enums::OSCError::ConvertFromString))?;
+                let v = std::str::from_utf8(arr).map_err(|_| enums::Error::OSC(enums::OSCError::ConvertFromString))?;
                 Ok(v.trim_end_matches(char::from(0)).to_owned().into())
             },
 
             (',', _) => {
                 let mut type_list:Vec<char> = vec![];
-                for i in &value.0[1..] {
+                for i in &arr[1..] {
                     if i != &0_u8 { type_list.push(*i as char); }
                 }
                 Ok(type_list.into())
             }
 
             ('b', _) => {
-                let v:&[u8;4] = value.0[0..4].try_into().map_err(|_| enums::Error::Packet(enums::PacketError::Underrun))?;
+                let v = [arr[0], arr[1], arr[2], arr[3]];
                 
                 #[expect(clippy::cast_sign_loss)]
-                let real_size = i32::from_be_bytes(*v) as usize;
+                let real_size = i32::from_be_bytes(v) as usize;
                 let end_idx = real_size + 4;
 
-                if value.0.len() >= end_idx {
-                    Ok(Self::Blob(value.0[4..end_idx].to_vec()))
+                if arr.len() >= end_idx {
+                    Ok(Self::Blob(arr[4..end_idx].to_vec()))
                 } else {
                     Err(enums::Error::Packet(enums::PacketError::Underrun))
                 }
@@ -275,10 +276,10 @@ impl Type {
     /// # Errors
     /// fails on invalid packets or unknown type or invalid type conversion
     #[inline]
-    pub fn decode_buffer(item : Result<Vec<u8>, enums::Error>, type_flag : char ) -> Result<Self, enums::Error> {
+    pub fn try_from_buffer(item : Result<Vec<u8>, enums::Error>, type_flag : char ) -> Result<Self, enums::Error> {
         match item {
             Err(v) => Err(v),
-            Ok(item) => (item.as_slice(), type_flag).try_into()
+            Ok(item) => Self::try_from((item.as_slice(), type_flag))
         }
     }
 
@@ -287,15 +288,15 @@ impl Type {
     /// # Errors
     /// fails on invalid packets or unknown type or invalid type conversion
     #[inline]
-    pub fn try_from_type(item: &Vec<u8>, type_flag:char) -> Result<Self, enums::Error> {
-        (item.as_slice(), type_flag).try_into()
+    pub fn try_from_vec(item: &Vec<u8>, type_flag:char) -> Result<Self, enums::Error> {
+        Self::try_from((item.as_slice(), type_flag))
     }
 
-    /// get character type association
+    /// get character type association, leaving &self intact
     ///
     /// # Errors
     /// fails on invalid type 
-    pub fn get_type_char(&self) -> Result<char, enums::Error> {
+    pub fn as_type_char(&self) -> Result<char, enums::Error> {
         match &self {
             Self::String(_)      => Ok('s'),
             Self::Integer(_)     => Ok('i'),
@@ -313,6 +314,21 @@ impl Type {
             Self::Boolean(v) => if *v { Ok('T') } else { Ok('F') },
             Self::Unknown() => Err(enums::Error::OSC(enums::OSCError::UnknownType)),
         }
+    }
+
+    /// Moves self into a new `Vec<u8>`
+    #[must_use]
+    pub fn into_vec(self) -> Vec<u8> {
+        self.into()
+    }
+
+    /// get value of with a default,
+    /// consuming the `Type`,
+    /// constrained to the type of "default"
+    pub fn default_value<T>(self, default: T) -> T  where 
+        T: TryFrom<Self>
+    {
+        T::try_from(self).unwrap_or(default)
     }
 }
 

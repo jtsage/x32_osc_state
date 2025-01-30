@@ -7,7 +7,12 @@ mod buffer_common;
 use buffer_common::random_data;
 
 fn level_test(fader: FaderIndex, level: f32) {
-    let mut msg = osc::Message::new(&format!("/{}/mix/fader", fader.get_x32_address()));
+    let mix_str = match fader {
+        FaderIndex::Dca(_) => "fader",
+        _ => "mix/fader",
+    };
+
+    let mut msg = osc::Message::new(&format!("/{}/{mix_str}", fader.get_x32_address()));
 
     msg.add_item(level);
 
@@ -21,7 +26,11 @@ fn level_test(fader: FaderIndex, level: f32) {
 }
 
 fn mute_test(fader: FaderIndex, is_on: bool) {
-    let mut msg = osc::Message::new(&format!("/{}/mix/on", fader.get_x32_address()));
+    let mix_str = match fader {
+        FaderIndex::Dca(_) => "on",
+        _ => "mix/on",
+    };
+    let mut msg = osc::Message::new(&format!("/{}/{mix_str}", fader.get_x32_address()));
 
     msg.add_item(is_on as i32);
 
@@ -140,74 +149,85 @@ fn fader_name() {
 
 #[test]
 fn cue_position() {
-	let msg = osc::Message::new("/-show/prepos/current");
+    let msg = osc::Message::new("/-show/prepos/current");
 
-	let mut msg_1 = msg.clone();
-	msg_1.add_item(1_i32);
+    let mut msg_1 = msg.clone();
+    msg_1.add_item(1_i32);
 
-	let update = x32::ConsoleMessage::try_from(msg_1);
-	assert_eq!(update, Ok(x32::ConsoleMessage::CurrentCue(1)));
+    let update = x32::ConsoleMessage::try_from(msg_1);
+    assert_eq!(update, Ok(x32::ConsoleMessage::CurrentCue(1)));
 
-	let mut msg_2 = msg.clone();
-	msg_2.add_item(32.5_f32);
+    let mut msg_2 = msg.clone();
+    msg_2.add_item(32.5_f32);
 
-	let update = x32::ConsoleMessage::try_from(msg_2);
-	assert_eq!(update, Ok(x32::ConsoleMessage::CurrentCue(-1)));
+    let update = x32::ConsoleMessage::try_from(msg_2);
+    assert_eq!(update, Ok(x32::ConsoleMessage::CurrentCue(-1)));
 }
 
 #[test]
 fn show_mode() {
-	let msg = osc::Message::new("/-prefs/show_control");
+    let msg = osc::Message::new("/-prefs/show_control");
 
-	let mut msg_1 = msg.clone();
-	msg_1.add_item(1_i32);
+    let mut msg_1 = msg.clone();
+    msg_1.add_item(1_i32);
 
-	let update = x32::ConsoleMessage::try_from(msg_1);
-	assert_eq!(update, Ok(x32::ConsoleMessage::ShowMode(ShowMode::Scenes)));
+    let update = x32::ConsoleMessage::try_from(msg_1);
+    assert_eq!(update, Ok(x32::ConsoleMessage::ShowMode(ShowMode::Scenes)));
 
-	let mut msg_2 = msg.clone();
-	msg_2.add_item(2_i32);
+    let mut msg_2 = msg.clone();
+    msg_2.add_item(2_i32);
 
-	let update = x32::ConsoleMessage::try_from(msg_2);
-	assert_eq!(update, Ok(x32::ConsoleMessage::ShowMode(ShowMode::Snippets)));
+    let update = x32::ConsoleMessage::try_from(msg_2);
+    assert_eq!(update, Ok(x32::ConsoleMessage::ShowMode(ShowMode::Snippets)));
 
-	let mut msg_0 = msg.clone();
-	msg_0.add_item(0_i32);
+    let mut msg_0 = msg.clone();
+    msg_0.add_item(0_i32);
 
-	let update = x32::ConsoleMessage::try_from(msg_0);
-	assert_eq!(update, Ok(x32::ConsoleMessage::ShowMode(ShowMode::Cues)));
+    let update = x32::ConsoleMessage::try_from(msg_0);
+    assert_eq!(update, Ok(x32::ConsoleMessage::ShowMode(ShowMode::Cues)));
 
-	let mut msg_7 = msg.clone();
-	msg_7.add_item(7_i32);
+    let mut msg_7 = msg.clone();
+    msg_7.add_item(7_i32);
 
-	let update = x32::ConsoleMessage::try_from(msg_7);
-	assert_eq!(update, Ok(x32::ConsoleMessage::ShowMode(ShowMode::Cues)));
+    let update = x32::ConsoleMessage::try_from(msg_7);
+    assert_eq!(update, Ok(x32::ConsoleMessage::ShowMode(ShowMode::Cues)));
 }
 
 #[test]
 fn unhandled_message() {
-	let msg = osc::Message::new("/dca/2/config/icon");
+    let msg = osc::Message::new("/dca/2/config/icon");
 
-	let result = x32::ConsoleMessage::try_from(msg);
+    let result = x32::ConsoleMessage::try_from(msg);
 
-	assert!(result.is_err());
-	assert_eq!(result, Err(Error::X32(X32Error::UnimplementedPacket)));
+    assert!(result.is_err());
+    assert_eq!(result, Err(Error::X32(X32Error::UnimplementedPacket)));
+}
+
+#[test]
+fn color_message() {
+    let mut msg = osc::Message::new("/dca/2/config/color");
+
+    msg.add_item(1_i32);
+
+    let result = x32::ConsoleMessage::try_from(msg);
+
+    assert!(matches!(result, Ok(x32::ConsoleMessage::Fader(_))));
 }
 
 #[test]
 fn invalid_faders() {
-	let level = osc::Message::new("/auxin/09/mix/fader");
-	let mute = osc::Message::new("/ch/36/mix/on");
-	let name = osc::Message::new("/dca/9/config/name");
+    let level = osc::Message::new("/auxin/09/mix/fader");
+    let mute = osc::Message::new("/ch/36/mix/on");
+    let name = osc::Message::new("/dca/9/config/name");
+    let color = osc::Message::new("/mtx/8/config/color");
     
-	let u_level = x32::ConsoleMessage::try_from(level);
-	let u_mute = x32::ConsoleMessage::try_from(mute);
-	let u_name = x32::ConsoleMessage::try_from(name);
+    let u_level = x32::ConsoleMessage::try_from(level);
+    let u_mute = x32::ConsoleMessage::try_from(mute);
+    let u_name = x32::ConsoleMessage::try_from(name);
+    let u_color = x32::ConsoleMessage::try_from(color);
 
-	assert!(u_level.is_err());
-	assert_eq!(u_level, Err(Error::X32(X32Error::InvalidFader)));
-	assert!(u_mute.is_err());
-	assert_eq!(u_mute, Err(Error::X32(X32Error::InvalidFader)));
-	assert!(u_name.is_err());
-	assert_eq!(u_name, Err(Error::X32(X32Error::InvalidFader)));
+    assert_eq!(u_level, Err(Error::X32(X32Error::InvalidFader)));
+    assert_eq!(u_mute, Err(Error::X32(X32Error::InvalidFader)));
+    assert_eq!(u_name, Err(Error::X32(X32Error::InvalidFader)));
+    assert_eq!(u_color, Err(Error::X32(X32Error::InvalidFader)));
 }

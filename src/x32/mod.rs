@@ -1,6 +1,3 @@
-// use super::enums::Error;
-
-
 /// `osc::Message` to the console
 mod to_console;
 /// `osc::Message` from the console
@@ -10,5 +7,3 @@ pub mod updates;
 
 pub use to_console::ConsoleRequest;
 pub use from_console::ConsoleMessage;
-
-
