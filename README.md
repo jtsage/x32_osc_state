@@ -20,6 +20,8 @@ assert_eq!(channel_01_fader.is_on(), (false, String::from("OFF")));
 
 ## Communicating to the X32
 
+Please see the examples folder for a very simple version of a self-updating X32 state machine.
+
 ```rust
 use x32_osc_state as x32;
 
@@ -42,8 +44,19 @@ let mut raw_buffer = [0; 1024];
 
 let buffer = x32::osc::Buffer::from(raw_buffer.clone().to_vec());
 
-// process function will take OSCBuffers or OSCMessages if you prefer
+// process function will take [`osc::Buffer`] or [`osc::Message`] if you prefer
 // to do some pre-processing. Messages that are malformed or not understood
 // are silently ignored
-state.process(buffer);
+let result:x32::X32ProcessResult = state.process(buffer);
+
+// This is for acting on new data immediately.  The result can be
+// safely ignored.  Most processed data is cached by the state
+// machine with the notable exception of meter information - if
+// you wish to use it, you must handle it here.
+match result {
+    x32::X32ProcessResult::NoOperation => (),
+    x32::X32ProcessResult::Meters((meter_id_int, meter_vec_u8)) => (),
+    x32::X32ProcessResult::Fader(fader) => (),
+    x32::X32ProcessResult::CurrentCue(string) => (),
+}
 ```
