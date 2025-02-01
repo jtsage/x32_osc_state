@@ -283,7 +283,7 @@ impl Type {
         }
     }
 
-    /// create new `OSCType` from `[u8]` of the passed type
+    /// create new [`Type`] from `[u8]` of the passed type
     ///
     /// # Errors
     /// fails on invalid packets or unknown type or invalid type conversion

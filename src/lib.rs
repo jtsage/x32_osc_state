@@ -8,8 +8,28 @@ pub mod osc;
 /// X32 Types and OSC Reflections
 pub mod x32;
 
+/// [`X32Console::process`] results
+/// 
+/// Note that a lot of understood messages still return [`X32ProcessResult::NoOperation`],
+/// particularly cue type messages
+#[derive(Debug, PartialEq, PartialOrd, Clone)]
+pub enum X32ProcessResult {
+    /// No operation should be taken
+    NoOperation,
+    /// A fader was changed
+    Fader(enums::Fader),
+    /// The current cue was changed
+    CurrentCue(String),
+    /// Meter info
+    /// the first item of the tuple is the meter message index.
+    /// note that the first element in the Vec is nonsense - it *should*
+    /// be an integer equal to the size of the vector, but that would
+    /// complicate working with the data - it is left intact so that
+    /// the vector indexes line up better with the data.
+    Meters((usize, Vec<f32>))
+}
 
-
+// MARK: X32State
 /// X32 State
 #[derive(Debug, Clone)]
 pub struct X32Console {
@@ -43,12 +63,14 @@ impl X32Console {
         }
     }
 
+    // MARK: ~fader
     /// Get a fader, 1 based index
     #[must_use]
     pub fn fader(&self, f_type:&enums::FaderIndex) -> Option<enums::Fader> {
         self.faders.get(f_type)
     }
 
+    // MARK: ~active_cue
     /// Get active cue, scene, or snippet
     #[must_use]
     pub fn active_cue(&self) -> String {
@@ -59,6 +81,7 @@ impl X32Console {
         }
     }
 
+    // MARK: ~cue_list_size
     /// Count cues
     #[must_use]
     pub fn cue_list_size(&self) -> (usize, usize, usize) {
@@ -69,6 +92,7 @@ impl X32Console {
         )
     }
 
+    // MARK: ~reset
     /// Reset the state machine
     pub fn reset(&mut self) {
         self.clear_cues();
@@ -82,6 +106,7 @@ impl X32Console {
         self.scenes = [(); 100].map(|()| None);
     }
 
+    // MARK: ~cue_name
     /// get formatted cue name from index (includes scene and snippet)
     fn cue_name(&self, index: Option<usize> ) -> String {
         let default = String::from("0.0.0 :: -- [--] [--]");
@@ -121,20 +146,33 @@ impl X32Console {
         }
     }
 
-    /// Process a `Buffer` or `Message` from x32 OSC data
-    pub fn process<T: TryInto<x32::ConsoleMessage>>(&mut self, v : T) {
-        if let Ok(v) = v.try_into() {
-            self.update(v);
-        }
+    // MARK: ~process
+    /// Process OSC data from the X32
+    /// 
+    /// This takes a well formed [`osc::Buffer`] or [`osc::Message`]
+    /// 
+    /// Returns [`X32ProcessResult`]
+    pub fn process<T: TryInto<x32::ConsoleMessage>>(&mut self, v : T) -> X32ProcessResult {
+        v.try_into().map_or(X32ProcessResult::NoOperation, |v| self.update(v))
     }
 
     /// Update the state machine from processed OSC data
-    pub fn update(&mut self, update :x32::ConsoleMessage ) {
+    pub fn update(&mut self, update :x32::ConsoleMessage ) -> X32ProcessResult {
         match update {
+            x32::ConsoleMessage::Meters(v) => X32ProcessResult::Meters(v),
             x32::ConsoleMessage::Fader(update) => self.faders.update(update),
+
             #[expect(clippy::cast_sign_loss)]
-            x32::ConsoleMessage::CurrentCue(v) => self.current_cue = if v < 0 { None } else { Some(v as usize) },
-            x32::ConsoleMessage::ShowMode(v) => self.show_mode = v,
+            x32::ConsoleMessage::CurrentCue(v) => {
+                self.current_cue = if v < 0 { None } else { Some(v as usize) };
+                X32ProcessResult::CurrentCue(self.active_cue())
+            },
+
+            x32::ConsoleMessage::ShowMode(v) => {
+                self.show_mode = v;
+                X32ProcessResult::CurrentCue(self.active_cue())
+            },
+    
             x32::ConsoleMessage::Cue(v) => {
                 if v.index <= 500 {
                     self.cues[v.index] = Some(enums::ShowCue{
@@ -144,16 +182,21 @@ impl X32Console {
                         scene: v.scene,
                     });
                 }
+                X32ProcessResult::NoOperation
             },
+
             x32::ConsoleMessage::Snippet(v) => {
                 if v.index <= 500 {
                     self.snippets[v.index] = Some(v.name.clone());
                 }
+                X32ProcessResult::NoOperation
             },
+
             x32::ConsoleMessage::Scene(v) => {
                 if v.index <= 500 {
                     self.scenes[v.index] = Some(v.name.clone());
                 }
+                X32ProcessResult::NoOperation
             },
         }
     }

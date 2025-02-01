@@ -35,7 +35,9 @@ async fn main() -> io::Result<()> {
     // always are receiving data
     tokio::spawn(async move {
         loop {
-            println!("sending xremote");
+            println!("sending meters");
+            s.send_to(x32::enums::X32_METER_0.as_slice(), x32).await.expect("broken socket");
+            s.send_to(x32::enums::X32_METER_5.as_slice(), x32).await.expect("broken socket");
             s.send_to(x32::enums::X32_XREMOTE.as_slice(), x32).await.expect("broken socket");
             tokio::time::sleep(Duration::from_secs(5)).await;
         }
@@ -46,7 +48,15 @@ async fn main() -> io::Result<()> {
     loop {
         let (len, addr) = r.recv_from(&mut buf).await?;
         let buffer = x32::osc::Buffer::from(buf.clone().to_vec());
-        x32_state.process(buffer);
         println!("{:?} bytes received from {:?}", len, addr);
+        let _x32_result = x32_state.process(buffer);
+        // match x32_result {
+        //     x32_osc_state::X32ProcessResult::NoOperation => (),
+        //     x32_osc_state::X32ProcessResult::Fader(fader) => (),
+        //     x32_osc_state::X32ProcessResult::CurrentCue(_) => (),
+        //     x32_osc_state::X32ProcessResult::Meters(v) => {
+        //         println!("{:?}", v);
+        //     },
+        // }
     }
 }

@@ -1,6 +1,6 @@
 use x32_osc_state::enums::{Fader, FaderIndex, FaderColor};
 use x32_osc_state::osc;
-use x32_osc_state::X32Console;
+use x32_osc_state::{X32ProcessResult, X32Console};
 
 mod buffer_common;
 use buffer_common::random_data_node;
@@ -23,7 +23,8 @@ fn make_and_test_cues() {
     state.process(make_node_message("/-show/showfile/scene/001 \"SceneAAA\" \"aaa\" %111111110 1"));
     state.process(make_node_message("/-show/showfile/scene/002 \"SceneBBB\" \"aaa\" %111111110 1"));
 
-    state.process(make_node_message("/-show/showfile/snippet/000 \"Snip-001\" 1 1 0 32768 1 "));
+    let result = state.process(make_node_message("/-show/showfile/snippet/000 \"Snip-001\" 1 1 0 32768 1 "));
+    assert_eq!(result, X32ProcessResult::NoOperation);
 
     assert_eq!(state.cue_list_size(), (3,2,1));
 
@@ -35,9 +36,12 @@ fn make_and_test_cues() {
     state.process(make_node_message("/-show/prepos/current 2"));
     assert_eq!(state.active_cue(), "Cue: 2.0.0 :: Cue Idx2 BadSceneSnip [--] [--]");
     state.process(make_node_message("/-show/prepos/current 3"));
+    
     assert_eq!(state.active_cue(), "Cue: 0.0.0 :: -- [--] [--]");
 
-    state.process(make_node_message("/-show/prepos/current 0"));
+    let result = state.process(make_node_message("/-show/prepos/current 0"));
+    assert!(matches!(result, X32ProcessResult::CurrentCue(_)));
+
     state.process(make_node_message("/-prefs/show_control SNIPPETS"));
     assert_eq!(state.active_cue(), "Snippet: 00:Snip-001");
     state.process(make_node_message("/-show/prepos/current 1"));
@@ -68,12 +72,12 @@ fn make_and_test_faders() {
     let channel = random_data_node();
     let aux = random_data_node();
 
-    make_fader_messages("auxin", 2, aux.clone()).iter().for_each(|item|state.process(item.clone()));
-    make_fader_messages("bus", 8, bus.clone()).iter().for_each(|item|state.process(item.clone()));
-    make_fader_messages("mtx", 4, mtx.clone()).iter().for_each(|item|state.process(item.clone()));
-    make_fader_messages("ch", 23, channel.clone()).iter().for_each(|item|state.process(item.clone()));
-    make_fader_messages("main", 1, main.clone()).iter().for_each(|item|state.process(item.clone()));
-    make_fader_messages("dca", 3, dca.clone()).iter().for_each(|item|state.process(item.clone()));
+    make_fader_messages("auxin", 2, aux.clone()).iter().for_each(|item|{ state.process(item.clone()); });
+    make_fader_messages("bus", 8, bus.clone()).iter().for_each(|item|{ state.process(item.clone()); });
+    make_fader_messages("mtx", 4, mtx.clone()).iter().for_each(|item|{ state.process(item.clone()); });
+    make_fader_messages("ch", 23, channel.clone()).iter().for_each(|item|{ state.process(item.clone()); });
+    make_fader_messages("main", 1, main.clone()).iter().for_each(|item|{ state.process(item.clone()); });
+    make_fader_messages("dca", 3, dca.clone()).iter().for_each(|item|{ state.process(item.clone()); });
 
     let aux_fader = state.fader(&FaderIndex::Aux(2)).expect("invalid fader");
 
@@ -119,4 +123,32 @@ fn make_and_test_faders() {
     assert_eq!(dca_fader.name(), "DCA3");
     assert_eq!(dca_fader.level().0, 0_f32);
     assert_eq!(dca_fader.is_on().0, false);
+
+    let msg1 = make_fader_messages("bus", 2, bus);
+    let result = state.process(msg1[0].clone());
+    assert!(matches!(result, X32ProcessResult::Fader(_)));
+}
+
+#[test]
+fn meter_test() {
+    let mut state = X32Console::default();
+    let float_original:[f32; 5] = [4.5, 1.0, 0.0, 0.5, 0.75];
+
+    let mut buffer_msg = osc::Message::new("/meters/0");
+    let float_packed = float_original
+        .map(|f| f.to_le_bytes())
+        .iter()
+        .flat_map(|u| *u)
+        .collect::<Vec<u8>>();
+
+    buffer_msg.add_item(osc::Type::Blob(float_packed));
+
+    let result = state.process(buffer_msg);
+    let expected = X32ProcessResult::Meters((0, float_original.clone().to_vec()));
+    assert_eq!(result, expected);
+
+    let mut buffer_msg = osc::Message::new("/meters/0");
+    buffer_msg.add_item(String::from("bad type"));
+    let result = state.process(buffer_msg);
+    assert_eq!(result, X32ProcessResult::NoOperation);
 }

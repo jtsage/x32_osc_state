@@ -143,7 +143,7 @@ impl Message {
         self
     }
 
-    /// Get the type list as an `OSCType(TypeList)`
+    /// Get the type list as an [`Type::TypeList`]
     fn type_list(&self) -> Type {
         let list:Vec<char> = self.args
             .clone()

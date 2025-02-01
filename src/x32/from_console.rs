@@ -1,6 +1,6 @@
 use crate::x32::updates::{CueUpdate, SnippetUpdate, SceneUpdate, FaderUpdate, FaderUpdateParse, FaderName, FaderIdx};
 use crate::enums::{Error, X32Error, ShowMode, NODE_STRING};
-use crate::osc::{Buffer, Message};
+use crate::osc::{Type, Buffer, Message};
 
 #[derive(Debug, PartialEq, PartialOrd)]
 /// Messages received from the X32 console
@@ -16,7 +16,9 @@ pub enum ConsoleMessage {
     /// Current cue index
     CurrentCue(i16),
     /// Current control mode (Cues, Scenes or Snippets)
-    ShowMode(ShowMode)
+    ShowMode(ShowMode),
+    /// Meters (see notes on [`crate::X32ProcessResult`])
+    Meters((usize, Vec<f32>))
 }
 
 impl TryFrom<Buffer> for ConsoleMessage {
@@ -134,6 +136,21 @@ impl ConsoleMessage {
 
             ("-prefs", "show_control", "", "") =>
                 Ok(Self::ShowMode(ShowMode::from_int(msg.first_default(-1_i32)))),
+
+            ("meters", _, "", "") => {
+                parts.1.parse::<usize>().map_or(Err(Error::X32(X32Error::UnimplementedPacket)), |t| {
+                    if let Some(Type::Blob(v)) = msg.args.first() {
+                        let float_vec:Vec<f32> = v.chunks_exact(4)
+                            .map(|f| {
+                                f32::from_le_bytes([f[0], f[1], f[2], f[3]])
+                            }).collect();
+
+                        Ok(Self::Meters((t, float_vec)))
+                    } else {
+                        Err(Error::X32(X32Error::UnimplementedPacket))
+                    }
+                })
+            },
 
             _ => Err(Error::X32(X32Error::UnimplementedPacket))
         }

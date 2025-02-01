@@ -2,17 +2,17 @@
 ///
 /// Supported types
 /// s :: string - string value (String padded to 32 bit block with nulls)
-/// f :: float - numeric value (`f32`)
-/// d :: double - numeric value (`f64`)
-/// i :: integer - numeric value (`i32`)
-/// h :: big int - numeric value (`i64`)
+/// f :: float - numeric value
+/// d :: double - numeric value
+/// i :: integer - numeric value
+/// h :: big int - numeric value
 /// T :: true - no value (0 bits)
 /// F :: false - no value (0 bits)
 /// N :: null - no value (0 bits)
 /// I :: bang - no value (0 bits)
 /// r :: color - rgbA as an array [R(0-255),G,B,A] (`[u8;4]`)
-/// c :: char - Character (`char` -> `u32`  - 32 bits)
-/// t :: time tag - numeric value (date -> `u32` x2)
+/// c :: char - Character
+/// t :: time tag - numeric value (date -> `[u32;2]`)
 /// 
 /// Unsupported types
 /// 
@@ -23,17 +23,15 @@
 use std::fmt;
 use std::fmt::Write;
 
-/// `OSCType` definitions
+/// [`Type`] definitions
 mod types;
-/// `OSCPacket` definitions
+/// [`Packet`] definitions
 mod packet;
 
 use super::enums;
 
 pub use types::Type;
 pub use packet::{Packet, Bundle, Message};
-
-
 
 
 // MARK: Buffer

@@ -1,3 +1,4 @@
+use serde::ser::{Serialize, Serializer, SerializeStruct};
 use std::fmt;
 use std::sync::LazyLock;
 use regex::Regex;
@@ -13,12 +14,27 @@ pub static NODE_STRING: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r#"[^\s"]+|"([^"]*)""#).expect("unable to compile pattern")
 });
 
-/// bundle tag, "#bundle", 8-byte
+/// bundle tag, `#bundle` (8-byte)
 pub const BUNDLE_TAG:[u8;8] = [0x23, 0x62, 0x75, 0x6e, 0x64, 0x6c, 0x65, 0x0];
-/// simple ignored node message - "-prefs/name", 24-byte
+/// simple ignored node message - `-prefs/name`, 44-bytes returned
 pub const X32_KEEP_ALIVE:[u8;24] = [0x2f, 0x6e, 0x6f, 0x64, 0x65, 0x0, 0x0, 0x0, 0x2c, 0x73, 0x0, 0x0, 0x2d, 0x70, 0x72, 0x65, 0x66, 0x73, 0x2f, 0x6e, 0x61, 0x6d, 0x65, 0x0];
-/// X32 remote command "/xremote", 12-byte
+/// X32 remote command `/xremote` (12-byte), no return
 pub const X32_XREMOTE:[u8;12] = [0x2f, 0x78, 0x72, 0x65, 0x6d, 0x6f, 0x74, 0x65, 0x0, 0x0, 0x0, 0x0];
+/// X32 command `/meters~,siii~/meters/0~~~[i:0][i:0][i:3]`, 304-bytes returned
+pub const X32_METER_0:[u8;40] = [
+    0x2f, 0x6d, 0x65, 0x74, 0x65, 0x72, 0x73, 0x0,
+    0x2c, 0x73, 0x69, 0x69, 0x69, 0x0, 0x0, 0x0,
+    0x2f, 0x6d, 0x65, 0x74, 0x65, 0x72, 0x73, 0x2f, 0x30, 0x0, 0x0, 0x0,
+    0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x2
+];
+/// X32 command `/meters~,siii~/meters/5~~~[i:0][i:0][i:3]`, 132 bytes returned
+pub const X32_METER_5:[u8;40] = [
+    0x2f, 0x6d, 0x65, 0x74, 0x65, 0x72, 0x73, 0x0,
+    0x2c, 0x73, 0x69, 0x69, 0x69, 0x0, 0x0, 0x0,
+    0x2f, 0x6d, 0x65, 0x74, 0x65, 0x72, 0x73, 0x2f, 0x35, 0x0, 0x0, 0x0,
+    0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x2
+];
+
 
 // MARK: Error
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
@@ -183,6 +199,7 @@ impl ShowMode {
     }
 }
 
+// MARK: Show Cue
 /// Show cue structure
 #[derive(Debug, Clone)]
 pub struct ShowCue {
@@ -196,6 +213,7 @@ pub struct ShowCue {
     pub scene : Option<usize>,
 }
 
+// MARK: Fader Index
 #[derive(Debug, Default, PartialEq, PartialOrd, Clone, Eq, Ord)]
 /// Types of faders
 pub enum FaderIndex {
@@ -283,6 +301,27 @@ impl FaderIndex {
     }
 }
 
+impl Serialize for FaderIndex {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut x = serializer.serialize_struct("FaderIndex", 3)?;
+        x.serialize_field("index", &self.get_index())?;
+        x.serialize_field("type", match &self {
+            Self::Aux(_) => "aux",
+            Self::Matrix(_) => "matrix",
+            Self::Main(_) => "main",
+            Self::Channel(_) => "channel",
+            Self::Dca(_) => "dca",
+            Self::Bus(_) => "bus",
+            Self::Unknown => "unknown",
+        })?;
+        x.serialize_field("name", &self.default_label())?;
+        x.end()
+    }
+}
+
 // MARK: FaderIndexParse
 /// Fader Index parsers
 pub enum FaderIndexParse {
@@ -330,7 +369,7 @@ impl TryFrom<FaderIndexParse> for FaderIndex {
 
 /// Fader color
 #[expect(missing_docs)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
+#[derive(serde::Serialize, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub enum FaderColor {
     Off,
     Red,
@@ -529,9 +568,24 @@ impl Fader {
     }
 }
 
+impl Serialize for Fader {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut x = serializer.serialize_struct("Fader", 5)?;
+        x.serialize_field("source", &self.source)?;
+        x.serialize_field("color", &self.color)?;
+        x.serialize_field("level", &self.level().1)?;
+        x.serialize_field("is_on", &self.is_on)?;
+        x.serialize_field("label", &self.label)?;
+        x.end()
+    }
+}
+
 
 /// Full tracked fader banks
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct FaderBank {
     /// main and mono
     main : [Fader;2],
@@ -609,10 +663,11 @@ impl FaderBank {
     }
 
     /// Update a fader
-    pub fn update(&mut self, update : crate::x32::updates::FaderUpdate) {
-        if let Some(fader) = self.get_mut(&update.source) {
+    pub fn update(&mut self, update : crate::x32::updates::FaderUpdate) -> crate::X32ProcessResult {
+        self.get_mut(&update.source).map_or(crate::X32ProcessResult::NoOperation, |fader| {
             fader.update(update);
-        }
+            crate::X32ProcessResult::Fader(fader.clone())
+        })
     }
 
     /// Get a mutable fader, zero based index
