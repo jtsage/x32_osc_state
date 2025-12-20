@@ -494,15 +494,23 @@ impl Fader {
     /// Get the vor update message for this fader
     #[must_use]
     pub fn vor_message(&self) -> super::osc::Packet {
-        super::osc::Packet::Message(super::osc::Message::new_with_string(
-            &self.source.get_vor_address(),
-            &format!("[{:02}] {:>3} {:>8} {}",
-                self.source.get_index(),
-                self.is_on().1,
-                self.level().1,
-                self.name()
-            )
-        ))
+        let fader_string = &format!("[{:02}] {:>3} {:>8} {}",
+            self.source.get_index(),
+            self.is_on().1,
+            self.level().1,
+            self.name()
+        );
+        let is_off_fuzzy = ! self.is_on || self.level < 0.03;
+
+        let mut message = super::osc::Message::new(&self.source.get_vor_address());
+        if is_off_fuzzy {
+            message.add_item(String::new());
+            message.add_item(fader_string.clone());
+        } else {
+            message.add_item(fader_string.clone());
+            message.add_item(String::new());
+        }
+        super::osc::Packet::Message(message)
     }
 
     /// update fader from OSC data

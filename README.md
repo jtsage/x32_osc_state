@@ -1,6 +1,8 @@
 # X32_OSC_STATE
 
-A state machine for X32 OSC communication. Includes an OSC encoder/decoder
+A state machine for X32 OSC communication. Includes an OSC encoder/decoder.
+
+Note that the VOR operation included is very opinionated. If you don't like my choices, you may want to roll your own.
 
 ## Getting data from the state machine
 
